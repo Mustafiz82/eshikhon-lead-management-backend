@@ -36,30 +36,76 @@ export const createDiscount = async (req, res) => {
  */
 export const updateDiscount = async (req, res) => {
   try {
-    const { filter, update } = req.body;
-    if (!filter || !update) {
-      return res.status(400).json({ error: "filter and update fields are required" });
+    const { id } = req.params;
+
+    // Only allow known fields
+    const allowed = [
+      "name",
+      "authority",
+      "mode",
+      "value",
+      "minValue",
+      "maxValue",
+      "capAmount",
+      "startAt",
+      "expireAt",
+      "appliesTo",
+      "notes"
+    ];
+    const payload = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([k]) => allowed.includes(k))
+    );
+
+    const discount = await Discount.findByIdAndUpdate(id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!discount) return res.status(404).json({ error: "discount not found" });
+
+    return res.json(discount);
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ error: err.message });
     }
-    const result = await Discount.updateMany(filter, update, { runValidators: true });
-    res.json({ modifiedCount: result.modifiedCount });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+    return res.status(400).json({ error: "Invalid id or payload" });
   }
 };
+
 
 /**
  * DELETE /discount
  * Delete discounts by filter
  */
+// export const deleteDiscount = async (req, res) => {
+//   try {
+//     const { filter } = req.body;
+//     if (!filter) {
+//       return res.status(400).json({ error: "filter is required" });
+//     }
+//     const result = await Discount.deleteMany(filter);
+//     res.json({ deletedCount: result.deletedCount });
+//   } catch (error) {
+//     res.status(400).json({ error: error.message });
+//   }
+// };
+
 export const deleteDiscount = async (req, res) => {
   try {
-    const { filter } = req.body;
-    if (!filter) {
-      return res.status(400).json({ error: "filter is required" });
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "id is required" });
     }
-    const result = await Discount.deleteMany(filter);
-    res.json({ deletedCount: result.deletedCount });
+
+    const discount = await Discount.findByIdAndDelete(id);
+
+    if (!discount) {
+      return res.status(404).json({ error: "discount not found" });
+    }
+
+    return res.json({ message: "discount deleted", id });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    return res.status(400).json({ error: "Invalid id" });
   }
 };
