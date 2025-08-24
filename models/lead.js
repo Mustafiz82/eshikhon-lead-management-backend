@@ -7,12 +7,11 @@ const leadSchema = new mongoose.Schema(
     address: { type: String, trim: true },
     email: {
       type: String,
-      match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       required: true,
       lowercase: true,
       index: true
     },
-    questions: { type: mongoose.Schema.Types.Mixed },
+    questions: { type: mongoose.Schema.Types.Mixed },   // other will be in quesiont preoper , seminarSource add , source file name
     seminarTopic: {
       type: String,
       default: "not provided"
@@ -21,20 +20,32 @@ const leadSchema = new mongoose.Schema(
     assignStatus: { type: Boolean, default: false },
     assignDate: { type: Date },
 
-    leadType: { type: String, enum: ["potential leads", "open Pool"] },
+    leadType: { type: String, enum: ["potential leads", "open Pool"], default: "potential leads" },
     leadSource: {
       type: String,
+      default: "seminar"
 
     },
     leadStatus: {
       type: String,
+      enum: [
+        "Enrolled",
+        "Will Join on Seminar",
+        "Not Interested",
+        "Enrolled in Other Institute",
+        "Cut the Call",
+        "Call Not Received",
+        "Number Off or Busy",
+        "Wrong Number",
+        "N/A"
+      ]
 
     },
     leadDiscount: { type: Number, default: 0 },
     discountUnit: {
       type: String,
       enum: ["percent", "flat"],
-      default: "flat"
+      default: "percent"
     },
 
     discountSource: {
@@ -88,10 +99,10 @@ const leadSchema = new mongoose.Schema(
       }
     ],
 
-    lastContacted: { type: Date },
+    lastContacted: { type: Date  },
     followUpDate: { type: Date },
     callCount: { type: Number, default: 0 },
-    sourceFileName: { type: String, trim: true, unique: true, index: true },
+    sourceFileName: { type: String, trim: true, index: true },
   },
   { timestamps: true }
 );

@@ -5,15 +5,20 @@ import userRoute from "./routes/userRoute.js"
 import cors from "cors";
 import courseRoute from "./routes/courseRoute.js";
 import discountRouter from "./routes/discountRoute.js";
+import { leadRoute } from "./routes/leadRoute.js";
+import { createFileName, getAllFileNames } from "./controllers/fileHistoryController.js";
 
 const app = express()
 
-app.use(express.json())
+app.use(express.json({limit:"20mb"}))
 app.use(cors({}))
 
 app.use("/api/user", userRoute)
 app.use("/api/course" , courseRoute)
 app.use("/api/discount" , discountRouter)
+app.use("/api/leads" , leadRoute)
+app.post("/api/file" , createFileName)
+app.get("/api/file" , getAllFileNames)
 
 app.get("/", (req, res) => {
     res.send("Server is running ✅");
