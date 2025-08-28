@@ -1,4 +1,5 @@
 
+import lead from "../models/lead.js"
 import User from "../models/user.js"
 import { compare } from "bcrypt"
 
@@ -11,15 +12,40 @@ export const createUser = async (req, res) => {
     }
 }
 
-
-export const getAllUser = async (req, res) => {
+export const getAllUser = async (_req, res) => {
     try {
-        const user = await User.find().select("+password");
-        return res.status(200).json(user)
+        const users = await User.aggregate([
+            {
+                $lookup: {
+                    from: lead.collection.name,   // "leads"
+                    localField: "email",
+                    foreignField: "assignTo",
+                    as: "assignedLeads",
+                },
+            },
+            {
+                $addFields: {
+                    leadCount: { $size: "$assignedLeads" },
+                    naLeadCount: {
+                        $size: {
+                            $filter: {
+                                input: "$assignedLeads",
+                                as: "lead",
+                                cond: { $eq: ["$$lead.leadStatus", "N/A"] },
+                            },
+                        },
+                    },
+                },
+            },
+            // keep ALL original user fields (incl. password), remove only the temp lookup array
+            { $unset: "assignedLeads" },
+        ]);
+
+        return res.status(200).json(users);
     } catch (error) {
-        return res.status(400).json({ error: error.message })
+        return res.status(400).json({ error: error.message });
     }
-}
+};
 
 
 export const getUser = async (req, res) => {

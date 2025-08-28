@@ -38,7 +38,8 @@ const leadSchema = new mongoose.Schema(
         "Number Off or Busy",
         "Wrong Number",
         "N/A"
-      ]
+      ],
+      default : "N/A"
 
     },
     leadDiscount: { type: Number, default: 0 },

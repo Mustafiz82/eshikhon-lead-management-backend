@@ -1,3 +1,4 @@
+import mongoose from "mongoose"
 import lead from "../models/lead.js"
 
 
@@ -37,10 +38,11 @@ export const getAllLeads = async (req, res) => {
 
 
         const filter = {}
-        const sortOption = {}
+        let sortOption 
+
 
         if (status !== "All") {
-            filter.status = status;
+            filter.assignStatus = status;
         }
 
         if (course && course !== "All") {
@@ -53,12 +55,17 @@ export const getAllLeads = async (req, res) => {
                 { email: { $regex: search, $options: "i" } },
                 { phone: { $regex: search, $options: "i" } },
             ]
-            
+
         }
 
-
-        if (sort && sort !== "default") {
-            sortOption.createdAt = sort === "Ascending" ? 1 : -1;
+       
+        if (sort === "Ascending") {
+            sortOption = { createdAt: 1, _id: 1 };
+        } else if (sort === "Descending") {
+            sortOption = { createdAt: -1, _id: -1 };
+        } else {
+            // Default (stable, newest first)
+            sortOption = { createdAt: -1, _id: -1 };
         }
 
 
@@ -68,6 +75,7 @@ export const getAllLeads = async (req, res) => {
 
         console.log(status, course, search, sort, limit, currentPage)
         const leadRes = await lead.find(filter).sort(sortOption).skip(skip).limit(limit ? limit : 50)
+        console.log(leadRes)
 
         res.status(200).json(leadRes)
     } catch (error) {
@@ -84,7 +92,7 @@ export const getLeadsCount = async (req, res) => {
         const filter = {};
 
         if (status !== "All") {
-            filter.status = status;
+            filter.assignStatus = status;
         }
 
         if (course && course !== "All") {
@@ -106,3 +114,37 @@ export const getLeadsCount = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
+
+
+export const updateLeads = async (req, res) => {
+    try {
+        const { ids } = req.body; // expect an array of lead IDs
+        const updateData = req.body.update; // fields to update
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: "No IDs provided" });
+        }
+
+        const result = await lead.updateMany(
+            { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } },
+            { $set: updateData },
+            { runValidators: true }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "No leads found" });
+        }
+
+        res.json({
+            message: `${result.modifiedCount} leads updated successfully`,
+        });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+
+
+
+
