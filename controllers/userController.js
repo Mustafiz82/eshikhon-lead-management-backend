@@ -11,40 +11,98 @@ export const createUser = async (req, res) => {
         res.status(400).json({ error: error.message })
     }
 }
-
 export const getAllUser = async (_req, res) => {
-    try {
-        const users = await User.aggregate([
-            {
-                $lookup: {
-                    from: lead.collection.name,   // "leads"
-                    localField: "email",
-                    foreignField: "assignTo",
-                    as: "assignedLeads",
-                },
-            },
-            {
-                $addFields: {
-                    leadCount: { $size: "$assignedLeads" },
-                    naLeadCount: {
-                        $size: {
-                            $filter: {
-                                input: "$assignedLeads",
-                                as: "lead",
-                                cond: { $eq: ["$$lead.leadStatus", "N/A"] },
-                            },
-                        },
-                    },
-                },
-            },
-            // keep ALL original user fields (incl. password), remove only the temp lookup array
-            { $unset: "assignedLeads" },
-        ]);
+  try {
+    const now = new Date(); // keep if you want the "future-only" variant below
 
-        return res.status(200).json(users);
-    } catch (error) {
-        return res.status(400).json({ error: error.message });
-    }
+    const users = await User.aggregate([
+      {
+        $lookup: {
+          from: lead.collection.name,         // "leads"
+          localField: "email",                // User.email
+          foreignField: "assignTo",           // Lead.assignTo
+          as: "assignedLeads",
+        },
+      },
+      {
+        $addFields: {
+          leadCount: { $size: "$assignedLeads" },
+
+          // follow-up: only count when followUpDate actually exists and is a real Date
+          followUpCount: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "l",
+                cond: {
+                  $and: [
+                    // not null/undefined/missing
+                    { $ne: [ { $ifNull: ["$$l.followUpDate", null] }, null ] },
+                    // not empty string (in case bad data slipped in)
+                    { $ne: ["$$l.followUpDate", ""] },
+                    // must be a BSON Date
+                    { $eq: [ { $type: "$$l.followUpDate" }, "date" ] },
+                  ]
+                }
+              }
+            }
+          },
+
+          // If you want ONLY future follow-ups, swap the block above with this:
+          // followUpCount: {
+          //   $size: {
+          //     $filter: {
+          //       input: "$assignedLeads",
+          //       as: "l",
+          //       cond: {
+          //         $and: [
+          //           { $eq: [ { $type: "$$l.followUpDate" }, "date" ] },
+          //           { $gte: ["$$l.followUpDate", now] }
+          //         ]
+          //       }
+          //     }
+          //   }
+          // },
+
+          enrolledCount: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "l",
+                cond: { $eq: ["$$l.leadStatus", "Enrolled"] },
+              },
+            },
+          },
+
+          joinedOnSeminarCount: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "l",
+                cond: { $eq: ["$$l.leadStatus", "Joined on seminar"] },
+              },
+            },
+          },
+
+          pendingCount: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "l",
+                cond: { $eq: ["$$l.leadStatus", "Pending"] },
+              },
+            },
+          },
+        },
+      },
+      { $unset: "assignedLeads" },
+      { $project: { password: 0, refreshToken: 0 } },
+    ]);
+
+    return res.status(200).json(users);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 };
 
 
