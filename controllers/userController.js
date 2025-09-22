@@ -13,19 +13,15 @@ export const createUser = async (req, res) => {
 }
 export const getAllUser = async (req, res) => {
   try {
-    // pick month/year or fallback
-    const { month, year, email, id } = req.query;
-    const numericMonth = month && month !== "all" ? parseInt(month) : null;
-    const numericYear = year ? parseInt(year) : new Date().getFullYear();
+    // pick month/year from query or fallback to current
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1); // 1-12
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const { email, id } = req.query; // optional filters
 
-    const startOfMonth = numericMonth
-      ? new Date(numericYear, numericMonth - 1, 1)
-      : null;
-    const endOfMonth = numericMonth
-      ? new Date(numericYear, numericMonth, 1)
-      : null;
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 1);
 
-    // early filter by email/id
+    // if id/email present, match early to optimize
     const matchStage = [];
     if (email) matchStage.push({ $match: { email } });
     if (id) matchStage.push({ $match: { _id: new mongoose.Types.ObjectId(id) } });
@@ -60,57 +56,43 @@ export const getAllUser = async (req, res) => {
               }
             },
             { $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true } },
-            { $addFields: { effectivePrice: { $ifNull: ["$courseData.price", 0] } } }
+            {
+              $addFields: {
+                effectivePrice: { $ifNull: ["$courseData.price", 0] }
+              }
+            }
           ]
         }
       },
       {
         $addFields: {
-          // Leads assigned (monthly or all)
+          // Leads assigned this month
           monthlyAssignedLeads: {
-            $cond: [
-              { $eq: [month, "all"] },
-              "$assignedLeads", // take all
-              {
-                $filter: {
-                  input: "$assignedLeads",
-                  as: "l",
-                  cond: {
-                    $and: [
-                      { $gte: ["$$l.assignDate", startOfMonth] },
-                      { $lt: ["$$l.assignDate", endOfMonth] }
-                    ]
-                  }
-                }
+            $filter: {
+              input: "$assignedLeads",
+              as: "l",
+              cond: {
+                $and: [
+                  { $gte: ["$$l.assignDate", startOfMonth] },
+                  { $lt: ["$$l.assignDate", endOfMonth] }
+                ]
               }
-            ]
+            }
           },
 
-          // Leads enrolled (monthly or all)
+          // Leads enrolled this month
           monthlyEnrolledLeads: {
-            $cond: [
-              { $eq: [month, "all"] },
-              {
-                $filter: {
-                  input: "$assignedLeads",
-                  as: "l",
-                  cond: { $eq: ["$$l.leadStatus", "Enrolled"] }
-                }
-              },
-              {
-                $filter: {
-                  input: "$assignedLeads",
-                  as: "l",
-                  cond: {
-                    $and: [
-                      { $eq: ["$$l.leadStatus", "Enrolled"] },
-                      { $gte: ["$$l.enrolledAt", startOfMonth] },
-                      { $lt: ["$$l.enrolledAt", endOfMonth] }
-                    ]
-                  }
-                }
+            $filter: {
+              input: "$assignedLeads",
+              as: "l",
+              cond: {
+                $and: [
+                  { $eq: ["$$l.leadStatus", "Enrolled"] },
+                  { $gte: ["$$l.enrolledAt", startOfMonth] },
+                  { $lt: ["$$l.enrolledAt", endOfMonth] }
+                ]
               }
-            ]
+            }
           }
         }
       },
@@ -155,15 +137,156 @@ export const getAllUser = async (req, res) => {
           enrolledCount: { $size: "$monthlyEnrolledLeads" }
         }
       },
-      // (rest of your $addFields and commission logic unchanged...)
+      {
+        $addFields: {
+          targetCompletionRate: {
+            $cond: [
+              { $gt: ["$targetAmount", 0] },
+              {
+                $round: [
+                  {
+                    $multiply: [
+                      { $divide: ["$totalPaidFromEnrolled", "$targetAmount"] },
+                      100
+                    ]
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $addFields: {
+          commission: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 40] },
+                      { $lte: ["$targetCompletionRate", 60] }
+                    ]
+                  },
+                  then: { $multiply: ["$totalPaidFromEnrolled", 0.01] }
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 61] },
+                      { $lte: ["$targetCompletionRate", 80] }
+                    ]
+                  },
+                  then: { $multiply: ["$totalPaidFromEnrolled", 0.02] }
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 81] },
+                      { $lte: ["$targetCompletionRate", 100] }
+                    ]
+                  },
+                  then: { $multiply: ["$totalPaidFromEnrolled", 0.03] }
+                },
+                {
+                  case: { $gt: ["$targetCompletionRate", 100] },
+                  then: { $multiply: ["$totalPaidFromEnrolled", 0.04] }
+                }
+              ],
+              default: 0
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          // Other monthly status counts
+          pendingCount: {
+            $size: {
+              $filter: {
+                input: "$monthlyAssignedLeads",
+                as: "l",
+                cond: { $eq: ["$$l.leadStatus", "Pending"] }
+              }
+            }
+          },
+          joinedOnSeminarCount: {
+            $size: {
+              $filter: {
+                input: "$monthlyAssignedLeads",
+                as: "l",
+                cond: { $eq: ["$$l.leadStatus", "Joined on seminar"] }
+              }
+            }
+          },
+          followUpCount: {
+            $size: {
+              $filter: {
+                input: "$monthlyAssignedLeads",
+                as: "l",
+                cond: {
+                  $and: [
+                    { $ne: [{ $ifNull: ["$$l.followUpDate", null] }, null] },
+                    { $ne: ["$$l.followUpDate", ""] },
+                    { $eq: [{ $type: "$$l.followUpDate" }, "date"] },
+                    { $gte: ["$$l.assignDate", startOfMonth] },
+                    { $lt: ["$$l.assignDate", endOfMonth] }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          connectedCallsToday: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "lead",
+                cond: {
+                  $and: [
+                    {
+                      $in: ["$$lead.leadStatus", [
+                        "Enrolled",
+                        "Will Join on Seminar",
+                        "Joined on seminar",
+                        "Not Interested",
+                        "Enrolled in Other Institute",
+                      ]]
+                    },
+                    {
+                      $eq: [
+                        {
+                          $dateToString: { format: "%Y-%m-%d", date: "$$lead.lastContacted" }
+                        },
+                        {
+                          $dateToString: { format: "%Y-%m-%d", date: new Date() }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+      ,
       { $project: { password: 0, refreshToken: 0, assignedLeads: 0 } }
     ]);
 
-    // return single if email/id used
+    // return single if user requested by email/id
     if (email || id) {
       return res.status(200).json(users[0] || null);
     }
+
+    // else return array
     return res.status(200).json(users);
+
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }

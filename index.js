@@ -7,6 +7,7 @@ import courseRoute from "./routes/courseRoute.js";
 import discountRouter from "./routes/discountRoute.js";
 import { leadRoute } from "./routes/leadRoute.js";
 import { createFileName, getAllFileNames } from "./controllers/fileHistoryController.js";
+import { getLeaderboards } from "./controllers/leaderboardController.js";
 
 const app = express()
 
@@ -19,6 +20,7 @@ app.use("/api/discount" , discountRouter)
 app.use("/api/leads" , leadRoute)
 app.post("/api/file" , createFileName)
 app.get("/api/file" , getAllFileNames)
+app.get("/api/leaderboards" , getLeaderboards)
 
 app.get("/", (req, res) => {
     res.send("Server is running ✅");
