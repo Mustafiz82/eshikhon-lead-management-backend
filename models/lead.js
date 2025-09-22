@@ -16,6 +16,7 @@ const leadSchema = new mongoose.Schema(
       type: String,
       default: "not provided"
     },
+    seminarType: { type: String, enum: ["Online", "Offline", "Video"], required: true },
     createdBy: { type: String, required: true },
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
@@ -32,8 +33,8 @@ const leadSchema = new mongoose.Schema(
       type: String,
       enum: [
         "Enrolled",
-        "Will Join on Seminar", 
-        "Joined on seminar" ,
+        "Will Join on Seminar",
+        "Joined on seminar",
         "Not Interested",
         "Enrolled in Other Institute",
         "Cut the Call",
@@ -97,11 +98,12 @@ const leadSchema = new mongoose.Schema(
       {
         text: { type: String, trim: true },
         createdAt: { type: Date, default: Date.now },
-        by : {type : String }
+        by: { type: String }
       }
     ],
 
     lastContacted: { type: Date },
+    enrolledAt : {type : Date},
     followUpDate: { type: Date },
     callCount: { type: Number, default: 0 },
     sourceFileName: { type: String, trim: true, index: true },

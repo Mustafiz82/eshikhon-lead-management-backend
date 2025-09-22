@@ -13,4 +13,4 @@ userRoute.delete("/:id" , deleteUser)
 
 
 
-export default userRoute
+export default userRoute    
