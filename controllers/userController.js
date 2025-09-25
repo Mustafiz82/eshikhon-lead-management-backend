@@ -13,13 +13,18 @@ export const createUser = async (req, res) => {
 }
 export const getAllUser = async (req, res) => {
   try {
-    // pick month/year from query or fallback to current
-    const month = parseInt(req.query.month) || (new Date().getMonth() + 1); // 1-12
-    const year = parseInt(req.query.year) || new Date().getFullYear();
+  
     const { email, id } = req.query; // optional filters
 
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 1);
+    const month = req.query.month;
+    const year = req.query.year;
+
+    let startOfMonth = null, endOfMonth = null;
+    if (month && month !== "all") {
+      startOfMonth = new Date(year, month - 1, 1);
+      endOfMonth = new Date(year, month, 1);
+    }
+
 
     // if id/email present, match early to optimize
     const matchStage = [];
@@ -274,7 +279,50 @@ export const getAllUser = async (req, res) => {
             }
           }
         }
+      },
+      {
+        $addFields: {
+          // 1. Overdue Leads
+          overdueCount: {
+            $size: {
+              $filter: {
+                input: "$assignedLeads",
+                as: "l",
+                cond: {
+                  $and: [
+                    { $ne: ["$$l.followUpDate", null] },
+                    { $eq: [{ $type: "$$l.followUpDate" }, "date"] },
+                    { $lt: ["$$l.followUpDate", new Date()] },
+                    ...(startOfMonth && endOfMonth
+                      ? [
+                        { $gte: ["$$l.followUpDate", startOfMonth] },
+                        { $lt: ["$$l.followUpDate", endOfMonth] }
+                      ]
+                      : [])
+                  ]
+                }
+              }
+            }
+          }         ,
+
+          // 2. Unreachable Leads
+          unreachableCount: {
+            $size: {
+              $filter: {
+                input: "$monthlyAssignedLeads",
+                as: "l",
+                cond: {
+                  $in: [
+                    "$$l.leadStatus",
+                    ["Cut the Call", "Call Not Received", "Number Off or Busy", "Wrong Number"]
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
+
       ,
       { $project: { password: 0, refreshToken: 0, assignedLeads: 0 } }
     ]);

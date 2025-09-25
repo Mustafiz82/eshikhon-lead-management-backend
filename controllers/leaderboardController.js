@@ -197,3 +197,205 @@ export const getLeaderboards = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
+
+
+export const getAdminLeadStats = async (req, res) => {
+  try {
+    // month/year filter from query
+
+    console.log("hit")
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 1);
+
+    const stats = await Lead.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfMonth, $lt: endOfMonth } // base filter by month
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalLeads: { $sum: 1 },
+
+          assignedLeads: {
+            $sum: { $cond: [{ $eq: ["$assignStatus", true] }, 1, 0] }
+          },
+          notAssignedLeads: {
+            $sum: { $cond: [{ $eq: ["$assignStatus", false] }, 1, 0] }
+          },
+
+          joinedOnSeminar: {
+            $sum: { $cond: [{ $eq: ["$leadStatus", "Joined on seminar"] }, 1, 0] }
+          },
+          totalEnrolled: {
+            $sum: { $cond: [{ $eq: ["$leadStatus", "Enrolled"] }, 1, 0] }
+          },
+
+          totalSales: {
+            $sum: {
+              $cond: [
+                { $eq: ["$leadStatus", "Enrolled"] },
+                { $ifNull: ["$totalPaid", 0] },
+                0
+              ]
+            }
+          },
+
+          overdueLeads: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$followUpDate", null] },
+                    { $ne: ["$followUpDate", ""] },
+                    { $eq: [{ $type: "$followUpDate" }, "date"] },
+                    { $lt: ["$followUpDate", new Date()] },
+                    { $gte: ["$followUpDate", startOfMonth] },
+                    { $lt: ["$followUpDate", endOfMonth] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      },
+      {
+        $project: { _id: 0 }
+      }
+    ]);
+
+    return res.status(200).json(stats[0] || {
+      totalLeads: 0,
+      assignedLeads: 0,
+      notAssignedLeads: 0,
+      joinedOnSeminar: 0,
+      totalEnrolled: 0,
+      totalSales: 0,
+      overdueLeads: 0
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+
+
+export const getLeadsGrowth = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const stats = await Lead.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: new Date(year, 0, 1), // Jan 1
+            $lt: new Date(year + 1, 0, 1), // Next Jan 1
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { month: { $month: "$createdAt" } },
+          totalLeads: { $sum: 1 },
+          enrolledLeads: {
+            $sum: { $cond: [{ $eq: ["$leadStatus", "Enrolled"] }, 1, 0] },
+          },
+        },
+      },
+      { $sort: { "_id.month": 1 } },
+    ]);
+
+    // create 12-month arrays
+    const totalLeadsArr = Array(12).fill(0);
+    const enrolledLeadsArr = Array(12).fill(0);
+
+    stats.forEach((s) => {
+      const m = s._id.month - 1; // 0-based index
+      totalLeadsArr[m] = s.totalLeads;
+      enrolledLeadsArr[m] = s.enrolledLeads;
+    });
+
+    return res.status(200).json({
+      totalLeads: totalLeadsArr,
+      enrolledLeads: enrolledLeadsArr,
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+
+export const getDailyCallCount = async (req, res) => {
+  try {
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1); // 1-12
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 1);
+
+    // ✅ Only fetch users that are not admin
+    const activeUsers = await User.find(
+      { role: { $ne: "admin" } },
+      { email: 1, name: 1 }
+    );
+
+    console.log(activeUsers.map(u => u.email))
+
+    const stats = await Lead.aggregate([
+      {
+        $match: {
+          assignTo: { $in: activeUsers.map(u => u.email) },
+          lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
+          leadStatus: {
+            $in: [
+              "Enrolled",
+              "Will Join on Seminar",
+              "Joined on seminar",
+              "Not Interested",
+              "Enrolled in Other Institute"
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            agent: "$assignTo",
+            day: { $dayOfMonth: "$lastContacted" }
+          },
+          callCount: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id.agent": 1, "_id.day": 1 } }
+    ]);
+
+    console.log(stats)
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const result = activeUsers.map(user => ({
+      name: user.name || user.email,
+      calls: Array(daysInMonth).fill(0),
+    }));
+
+    console.log(result)
+
+    stats.forEach(s => {
+      const idx = result.findIndex(r => r.name === (activeUsers.find(u => u.email === s._id.agent)?.name || s._id.agent));
+      if (idx !== -1) {
+        result[idx].calls[s._id.day - 1] = s.callCount;
+      }
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+
