@@ -199,136 +199,169 @@ export const getLeaderboards = async (req, res) => {
 };
 
 
+// export const getAdminLeadStats = async (req, res) => {
+//   try {
+//     // month/year filter from query
+
+//     console.log("hit")
+//     const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+//     const year = parseInt(req.query.year) || new Date().getFullYear();
+
+//     const startOfMonth = new Date(year, month - 1, 1);
+//     const endOfMonth = new Date(year, month, 1);
+
+//     const stats = await Lead.aggregate([
+//       {
+//         $match: {
+//           createdAt: { $gte: startOfMonth, $lt: endOfMonth } // base filter by month
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: null,
+//           totalLeads: { $sum: 1 },
+
+//           assignedLeads: {
+//             $sum: { $cond: [{ $eq: ["$assignStatus", true] }, 1, 0] }
+//           },
+//           notAssignedLeads: {
+//             $sum: { $cond: [{ $eq: ["$assignStatus", false] }, 1, 0] }
+//           },
+
+//           joinedOnSeminar: {
+//             $sum: { $cond: [{ $eq: ["$leadStatus", "Joined on seminar"] }, 1, 0] }
+//           },
+//           totalEnrolled: {
+//             $sum: { $cond: [{ $eq: ["$leadStatus", "Enrolled"] }, 1, 0] }
+//           },
+
+//           totalSales: {
+//             $sum: {
+//               $cond: [
+//                 { $eq: ["$leadStatus", "Enrolled"] },
+//                 { $ifNull: ["$totalPaid", 0] },
+//                 0
+//               ]
+//             }
+//           },
+
+//           overdueLeads: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     { $ne: ["$followUpDate", null] },
+//                     { $ne: ["$followUpDate", ""] },
+//                     { $eq: [{ $type: "$followUpDate" }, "date"] },
+//                     { $lt: ["$followUpDate", new Date()] },
+//                     { $gte: ["$followUpDate", startOfMonth] },
+//                     { $lt: ["$followUpDate", endOfMonth] }
+//                   ]
+//                 },
+//                 1,
+//                 0
+//               ]
+//             }
+//           }
+//         }
+//       },
+//       {
+//         $project: { _id: 0 }
+//       }
+//     ]);
+
+//     return res.status(200).json(stats[0] || {
+//       totalLeads: 0,
+//       assignedLeads: 0,
+//       notAssignedLeads: 0,
+//       joinedOnSeminar: 0,
+//       totalEnrolled: 0,
+//       totalSales: 0,
+//       overdueLeads: 0
+//     });
+//   } catch (error) {
+//     return res.status(400).json({ error: error.message });
+//   }
+// };
+
 export const getAdminLeadStats = async (req, res) => {
   try {
-    // month/year filter from query
-
-    console.log("hit")
+    console.log("hit");
     const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth = new Date(year, month, 1);
 
-    const stats = await Lead.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startOfMonth, $lt: endOfMonth } // base filter by month
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalLeads: { $sum: 1 },
+    const baseFilter = { createdAt: { $gte: startOfMonth, $lt: endOfMonth } };
 
-          assignedLeads: {
-            $sum: { $cond: [{ $eq: ["$assignStatus", true] }, 1, 0] }
-          },
-          notAssignedLeads: {
-            $sum: { $cond: [{ $eq: ["$assignStatus", false] }, 1, 0] }
-          },
-
-          joinedOnSeminar: {
-            $sum: { $cond: [{ $eq: ["$leadStatus", "Joined on seminar"] }, 1, 0] }
-          },
-          totalEnrolled: {
-            $sum: { $cond: [{ $eq: ["$leadStatus", "Enrolled"] }, 1, 0] }
-          },
-
-          totalSales: {
-            $sum: {
-              $cond: [
-                { $eq: ["$leadStatus", "Enrolled"] },
-                { $ifNull: ["$totalPaid", 0] },
-                0
-              ]
-            }
-          },
-
-          overdueLeads: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $ne: ["$followUpDate", null] },
-                    { $ne: ["$followUpDate", ""] },
-                    { $eq: [{ $type: "$followUpDate" }, "date"] },
-                    { $lt: ["$followUpDate", new Date()] },
-                    { $gte: ["$followUpDate", startOfMonth] },
-                    { $lt: ["$followUpDate", endOfMonth] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          }
-        }
-      },
-      {
-        $project: { _id: 0 }
-      }
+    const [
+      totalLeads,
+      assignedLeads,
+      notAssignedLeads,
+      joinedOnSeminar,
+      totalEnrolled,
+      totalSales,
+      overdueLeads
+    ] = await Promise.all([
+      Lead.countDocuments(baseFilter),
+      Lead.countDocuments({ ...baseFilter, assignStatus: true }),
+      Lead.countDocuments({ ...baseFilter, assignStatus: false }),
+      Lead.countDocuments({ ...baseFilter, leadStatus: "Joined on seminar" }),
+      Lead.countDocuments({ ...baseFilter, leadStatus: "Enrolled" }),
+      Lead.aggregate([
+        { $match: { ...baseFilter, leadStatus: "Enrolled" } },
+        { $group: { _id: null, total: { $sum: { $ifNull: ["$totalPaid", 0] } } } }
+      ]).then(r => r[0]?.total || 0),
+      Lead.countDocuments({
+        ...baseFilter,
+        followUpDate: { $ne: null, $lt: new Date() }
+      })
     ]);
 
-    return res.status(200).json(stats[0] || {
-      totalLeads: 0,
-      assignedLeads: 0,
-      notAssignedLeads: 0,
-      joinedOnSeminar: 0,
-      totalEnrolled: 0,
-      totalSales: 0,
-      overdueLeads: 0
+    return res.status(200).json({
+      totalLeads,
+      assignedLeads,
+      notAssignedLeads,
+      joinedOnSeminar,
+      totalEnrolled,
+      totalSales,
+      overdueLeads
     });
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
-
 
 
 export const getLeadsGrowth = async (req, res) => {
   try {
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
-    const stats = await Lead.aggregate([
-      {
-        $match: {
-          createdAt: {
-            $gte: new Date(year, 0, 1), // Jan 1
-            $lt: new Date(year + 1, 0, 1), // Next Jan 1
-          },
-        },
-      },
-      {
-        $group: {
-          _id: { month: { $month: "$createdAt" } },
-          totalLeads: { $sum: 1 },
-          enrolledLeads: {
-            $sum: { $cond: [{ $eq: ["$leadStatus", "Enrolled"] }, 1, 0] },
-          },
-        },
-      },
-      { $sort: { "_id.month": 1 } },
-    ]);
+    const monthlyStats = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => {
+        const start = new Date(year, i, 1);
+        const end = new Date(year, i + 1, 1);
 
-    // create 12-month arrays
-    const totalLeadsArr = Array(12).fill(0);
-    const enrolledLeadsArr = Array(12).fill(0);
+        return Promise.all([
+          Lead.countDocuments({ createdAt: { $gte: start, $lt: end } }),
+          Lead.countDocuments({
+            createdAt: { $gte: start, $lt: end },
+            leadStatus: "Enrolled",
+          }),
+        ]);
+      })
+    );
 
-    stats.forEach((s) => {
-      const m = s._id.month - 1; // 0-based index
-      totalLeadsArr[m] = s.totalLeads;
-      enrolledLeadsArr[m] = s.enrolledLeads;
-    });
+    const totalLeads = monthlyStats.map(([t]) => t);
+    const enrolledLeads = monthlyStats.map(([_, e]) => e);
 
-    return res.status(200).json({
-      totalLeads: totalLeadsArr,
-      enrolledLeads: enrolledLeadsArr,
-    });
+    return res.json({ totalLeads, enrolledLeads });
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
+
 
 
 export const getDailyCallCount = async (req, res) => {

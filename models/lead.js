@@ -3,13 +3,13 @@ import mongoose from "mongoose";
 const leadSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    phone: { type: String, required: true, trim: true, index: true },
+    phone: { type: String, required: true, trim: true,  },
     address: { type: String, trim: true },
     email: {
       type: String,
       required: true,
       lowercase: true,
-      index: true
+     
     },
     questions: { type: mongoose.Schema.Types.Mixed },   // other will be in quesiont preoper , seminarSource add , source file name
     seminarTopic: {
@@ -97,7 +97,7 @@ const leadSchema = new mongoose.Schema(
     note: [
       {
         text: { type: String, trim: true },
-        createdAt: { type: Date, default: Date.now },
+        createdAt: { type: Date, default: Date.now ,},
         by: { type: String }
       }
     ],
@@ -106,9 +106,17 @@ const leadSchema = new mongoose.Schema(
     enrolledAt : {type : Date},
     followUpDate: { type: Date },
     callCount: { type: Number, default: 0 },
-    sourceFileName: { type: String, trim: true, index: true },
+    sourceFileName: { type: String, trim: true,  },
   },
   { timestamps: true }
 );
+
+
+leadSchema.index({ email: 1 });
+leadSchema.index({ assignTo: 1, assignDate: 1 });   
+leadSchema.index({ leadStatus: 1, enrolledAt: 1 });
+leadSchema.index({ createdAt: -1 });
+
+
 
 export default mongoose.model("Lead", leadSchema);

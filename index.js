@@ -39,7 +39,7 @@ app.use(async (req, res, next) => {
     }
     next();
 
-})
+})  
 
 app.listen(3001, () => {
     console.log("server running on localhost 3001")
