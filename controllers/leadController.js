@@ -159,7 +159,7 @@ export const getAllLeads = async (req, res) => {
         const skip = (limit ? limit : 50) * ((currentPage ? currentPage : 1) - 1)
 
         console.log(status, course, search, sort, limit, currentPage)
-        const leadRes = await lead.find(filter , projection).sort(sortOption).allowDiskUse().skip(skip).limit(limit ? limit : 50).lean()
+        const leadRes = await lead.find(filter, projection).sort(sortOption).allowDiskUse().skip(skip).limit(limit ? limit : 50).lean()
         // console.log(leadRes)
 
         res.status(200).json(leadRes)
@@ -188,6 +188,7 @@ export const getLeadsCount = async (req, res) => {
             showOnlyFollowups,
             followUpDate,
             showOnlyMissedFollowUps,
+            missedFollwUpDate
         } = req.query;
 
         const filter = {};
@@ -251,6 +252,22 @@ export const getLeadsCount = async (req, res) => {
                 $lt: bdNow, // strictly before now
             };
         }
+
+        if (missedFollwUpDate && missedFollwUpDate !== "All") {
+            const { start, end } = getDateRange(missedFollwUpDate, "missedFollowup");
+            const now = new Date();
+            const bdNow = new Date(
+                now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" })
+            );
+
+            filter.followUpDate = {
+                $exists: true,
+                $ne: null,
+                $lt: bdNow,  // already missed
+                ...(start && end ? { $gte: start, $lte: end } : {})
+            };
+        }
+
 
         console.log(filter, "count filter");
 

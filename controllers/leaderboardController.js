@@ -372,7 +372,7 @@ export const getAgentleadState = async (req, res) => {
                 {
                   $in: [
                     "$leadStatus",
-                    ["Cut the Call", "Call Not Received", "Number Off or Busy", "Wrong Number"],
+                    ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"],
                   ],
                 },
                 1,

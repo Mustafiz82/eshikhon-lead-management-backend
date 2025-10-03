@@ -37,7 +37,7 @@ const leadSchema = new mongoose.Schema(
         "Joined on seminar",
         "Not Interested",
         "Enrolled in Other Institute",
-        "Cut the Call",
+        "call declined",
         "Call Not Received",
         "Number Off or Busy",
         "Wrong Number",
