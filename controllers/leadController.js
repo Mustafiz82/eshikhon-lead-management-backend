@@ -545,3 +545,40 @@ export const markJoinedFromAttendance = async (req, res) => {
         return res.status(500).json({ error: e.message });
     }
 };
+
+
+
+
+export const deleteLeads = async (req, res) => {
+  try {
+    // Expect: { ids: ["64f...", "650...", ...] }
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "ids (non-empty array) is required" });
+    }
+
+    // Deduplicate + validate ObjectIds
+    const uniqueIds = [...new Set(ids.map(String))];
+    const validIds = uniqueIds.filter(mongoose.isValidObjectId);
+    const invalidIds = uniqueIds.filter(id => !mongoose.isValidObjectId(id));
+
+    if (validIds.length === 0) {
+      return res.status(400).json({ error: "No valid MongoDB ObjectIds provided", invalidIds });
+    }
+
+    // Perform deletion
+    const result = await lead.deleteMany({ _id: { $in: validIds } });
+
+    return res.json({
+      ok: true,
+      requested: uniqueIds.length,
+      attempted: validIds.length,
+      deletedCount: result.deletedCount || 0,
+      invalidIds,
+    });
+  } catch (error) {
+    console.error("deleteLeads error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};

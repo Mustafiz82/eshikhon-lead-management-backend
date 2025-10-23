@@ -18,23 +18,42 @@ export const createCource = async (req, res) => {
 /** List (with pagination, search, sort) */
 export const listCources = async (req, res) => {
     try {
-        const { page, limit, sort = "-createdAt", q = "", type } = req.query;
+        const { page, limit, sort = "Default", q = "", type } = req.query;
 
         // Build filter
         const filter = {};
         if (q) filter.name = { $regex: q, $options: "i" };
         if (type) filter.type = type;
 
+        // Define fixed sort logic
+        let sortOption = {};
+        switch (sort) {
+            case "Name (Ascending)":
+                sortOption = { name: 1 };
+                break;
+            case "Name (Descending)":
+                sortOption = { name: -1 };
+                break;
+            case "Price (Ascending)":
+                sortOption = { price: 1 };
+                break;
+            case "Price (Descending)":
+                sortOption = { price: -1 };
+                break;
+            default:
+                sortOption = { createdAt: -1 }; // Default → newest first
+        }
+
         const hasPagination = page !== undefined && limit !== undefined;
 
         if (hasPagination) {
             // Pagination mode
             const pageNum = Math.max(1, Number(page));
-            const lim = Math.min(100, Math.max(1, Number(limit))); // guardrails
+            const lim = Math.min(100, Math.max(1, Number(limit)));
             const skip = (pageNum - 1) * lim;
 
             const [items, total] = await Promise.all([
-                course.find(filter).sort(sort).skip(skip).limit(lim),
+                course.find(filter).sort(sortOption).skip(skip).limit(lim),
                 course.countDocuments(filter),
             ]);
 
@@ -47,15 +66,14 @@ export const listCources = async (req, res) => {
             });
         }
 
-        // Non‑pagination mode: return all matching docs
-        const items = await course.find(filter).sort(sort);
-        // You can return just `items` if you prefer:
-        // return res.json(items);
+        // Non-pagination mode
+        const items = await course.find(filter).sort(sortOption);
         return res.json({ items, total: items.length });
     } catch (err) {
         return res.status(500).json({ error: "Internal server error" });
     }
 };
+
 
 
 /** Read (single) */
