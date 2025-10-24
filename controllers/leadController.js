@@ -40,7 +40,6 @@ export const createSingleLead = async (req, res) => {
 
 
 
-
 export const getAllLeads = async (req, res) => {
 
     try {
@@ -62,6 +61,7 @@ export const getAllLeads = async (req, res) => {
             followUpDate,
             showOnlyMissedFollowUps,
             fields,
+            lock,
             missedFollowUpDate } = req.query
 
         console.log(showOnlyFollowups, status, course, search, sort, limit, currentPage, createdBy, assignTo)
@@ -133,6 +133,10 @@ export const getAllLeads = async (req, res) => {
             };
         }
 
+        if(lock && lock !== "All"){
+            filter.isLocked = lock == "Locked" ? true : false
+        }
+
 
 
 
@@ -147,10 +151,13 @@ export const getAllLeads = async (req, res) => {
         }
 
 
+        
+
+
         let projection = null;
         if (fields === "table") {
             projection =
-                "_id name email phone address seminarTopic leadStatus assignStatus createdAt";
+                "_id name email phone address seminarTopic leadStatus assignStatus createdAt isLocked";
         }
 
 
@@ -167,8 +174,6 @@ export const getAllLeads = async (req, res) => {
         res.status(400).json({ error: error.message })
     }
 }
-
-
 
 
 
@@ -434,13 +439,12 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
 
 
 
-
-
 const cleanEmail = (raw) => {
     if (!raw) return null;
     const m = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
     return m ? m[0].toLowerCase().trim() : null;
 };
+
 
 const phoneEndings = (raw) => {
     // robust endings for international: last 10/9/8 of digits (drop leading 00 / 0)
@@ -454,6 +458,7 @@ const phoneEndings = (raw) => {
     }
     return [...out];
 };
+
 
 
 export const markJoinedFromAttendance = async (req, res) => {
@@ -545,7 +550,6 @@ export const markJoinedFromAttendance = async (req, res) => {
         return res.status(500).json({ error: e.message });
     }
 };
-
 
 
 

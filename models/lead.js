@@ -75,6 +75,11 @@ const leadSchema = new mongoose.Schema(
       default: 0
     },
 
+    isLocked : {
+        type : Boolean,
+        default : false
+    },
+
     nextEstimatedPaymentDate: {
       type: Date
     },
