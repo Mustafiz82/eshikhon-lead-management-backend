@@ -139,8 +139,6 @@ export const getAllLeads = async (req, res) => {
 
 
 
-
-
         if (sort === "Ascending") {
             sortOption = { createdAt: 1, _id: 1 };
         } else if (sort === "Descending") {
