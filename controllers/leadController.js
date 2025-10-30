@@ -155,7 +155,7 @@ export const getAllLeads = async (req, res) => {
         let projection = null;
         if (fields === "table") {
             projection =
-                "_id name email phone address seminarTopic leadStatus assignStatus createdAt isLocked";
+                "_id name email phone address seminarTopic leadStatus assignStatus createdAt isLocked seminarType";
         }
 
 
