@@ -4,28 +4,76 @@ import lead from "../models/lead.js"
 
 export const createLead = async (req, res) => {
     try {
-        let leads = req.body
-        console.log(leads)
+        // Always work with an array
+        let leads = Array.isArray(req.body) ? req.body : [req.body];
 
-        if (!Array.isArray(leads)) {
-            leads = [leads]
+        // Step 1️⃣ — Normalize values
+        leads = leads.map(lead => ({
+            ...lead,
+            phone: String(lead.phone)?.trim(),
+            seminarTopic: lead.seminarTopic?.trim() || "not provided",
+        }));
+
+        if (leads.length === 0) {
+            return res.status(400).json({ error: "No leads provided" });
         }
-        const inserted = await lead.insertMany(leads);
 
-        // console.log(leads)
-        // console.log(inserted)
+        // Step 2️⃣ — Remove duplicates inside the same upload
+        const seenPairs = new Set();
+        const uniqueIncoming = [];
+        for (const l of leads) {
+            const key = `${l.phone}-${l.seminarTopic}`;
+            if (!seenPairs.has(key)) {
+                seenPairs.add(key);
+                uniqueIncoming.push(l);
+            }
+        }
+
+        // Step 3️⃣ — Find which of these already exist in the DB
+        const existing = await lead.find(
+            {
+                $or: uniqueIncoming.map(l => ({
+                    phone: l.phone,
+                    seminarTopic: l.seminarTopic,
+                })),
+            },
+            { phone: 1, seminarTopic: 1 }
+        ).lean();
+
+        // Step 4️⃣ — Create a Set of existing pairs
+        const existingPairs = new Set(
+            existing.map(e => `${e.phone}-${e.seminarTopic}`)
+        );
+
+        // Step 5️⃣ — Keep only truly new ones
+        const newLeads = uniqueIncoming.filter(
+            l => !existingPairs.has(`${l.phone}-${l.seminarTopic}`)
+        );
+
+        if (newLeads.length === 0) {
+            return res.status(200).json({
+                ok: false,
+                message: "All leads are duplicates .",
+                insertedCount: 0,
+                skippedCount: leads.length,
+            });
+        }
+
+        // Step 6️⃣ — Insert unique leads
+        const inserted = await lead.insertMany(newLeads);
 
         return res.status(201).json({
             ok: true,
-            count: inserted.length,
-            data: inserted,
+            message: `${inserted.length} new leads added, ${leads.length - inserted.length} skipped.`,
+            insertedCount: inserted.length,
+            skippedCount: leads.length - inserted.length,
         });
-
-
     } catch (error) {
-        res.status(400).json({ error: error.message })
+        console.error("createLead error:", error);
+        res.status(500).json({ error: error.message });
     }
-}
+};
+
 
 
 export const createSingleLead = async (req, res) => {
@@ -62,6 +110,7 @@ export const getAllLeads = async (req, res) => {
             showOnlyMissedFollowUps,
             fields,
             lock,
+            leadSource,
             missedFollowUpDate } = req.query
 
         console.log(showOnlyFollowups, status, course, search, sort, limit, currentPage, createdBy, assignTo)
@@ -133,8 +182,12 @@ export const getAllLeads = async (req, res) => {
             };
         }
 
-        if(lock && lock !== "All"){
+        if (lock && lock !== "All") {
             filter.isLocked = lock == "Locked" ? true : false
+        }
+
+        if (leadSource && leadSource !== "All") {
+            filter.leadSource = leadSource
         }
 
 
@@ -149,7 +202,7 @@ export const getAllLeads = async (req, res) => {
         }
 
 
-        
+
 
 
         let projection = null;
@@ -172,6 +225,40 @@ export const getAllLeads = async (req, res) => {
         res.status(400).json({ error: error.message })
     }
 }
+
+export const getLeadSources = async (req, res) => {
+    try {
+        console.log("hit /getLeadSources");
+
+        const sources = await lead.aggregate([
+            {
+                $match: {
+                    leadSource: { $exists: true, $ne: null, $ne: "" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$leadSource"
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    leadSource: "$_id"
+                }
+            }
+        ]);
+
+        // Extract array of strings
+        const uniqueSources = sources.map(item => item.leadSource);
+
+        res.status(200).json(uniqueSources);
+    } catch (error) {
+        console.error("Error fetching lead sources:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 
 
 
@@ -436,7 +523,6 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
 }
 
 
-
 const cleanEmail = (raw) => {
     if (!raw) return null;
     const m = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -552,35 +638,39 @@ export const markJoinedFromAttendance = async (req, res) => {
 
 
 export const deleteLeads = async (req, res) => {
-  try {
-    // Expect: { ids: ["64f...", "650...", ...] }
-    const { ids } = req.body;
+    try {
+        // Expect: { ids: ["64f...", "650...", ...] }
+        const { ids } = req.body;
 
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: "ids (non-empty array) is required" });
+        console.log(ids)
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: "ids (non-empty array) is required" });
+        }
+
+        // Deduplicate + validate ObjectIds
+        const uniqueIds = [...new Set(ids.map(String))];
+        const validIds = uniqueIds.filter(mongoose.isValidObjectId);
+        const invalidIds = uniqueIds.filter(id => !mongoose.isValidObjectId(id));
+
+        console.log(validIds, "validids")
+
+        if (validIds.length === 0) {
+            return res.status(400).json({ error: "No valid MongoDB ObjectIds provided", invalidIds });
+        }
+
+        // Perform deletion
+        const result = await lead.deleteMany({ _id: { $in: validIds } });
+
+        return res.json({
+            ok: true,
+            requested: uniqueIds.length,
+            attempted: validIds.length,
+            deletedCount: result.deletedCount || 0,
+            invalidIds,
+        });
+    } catch (error) {
+        console.error("deleteLeads error:", error);
+        return res.status(500).json({ error: error.message });
     }
-
-    // Deduplicate + validate ObjectIds
-    const uniqueIds = [...new Set(ids.map(String))];
-    const validIds = uniqueIds.filter(mongoose.isValidObjectId);
-    const invalidIds = uniqueIds.filter(id => !mongoose.isValidObjectId(id));
-
-    if (validIds.length === 0) {
-      return res.status(400).json({ error: "No valid MongoDB ObjectIds provided", invalidIds });
-    }
-
-    // Perform deletion
-    const result = await lead.deleteMany({ _id: { $in: validIds } });
-
-    return res.json({
-      ok: true,
-      requested: uniqueIds.length,
-      attempted: validIds.length,
-      deletedCount: result.deletedCount || 0,
-      invalidIds,
-    });
-  } catch (error) {
-    console.error("deleteLeads error:", error);
-    return res.status(500).json({ error: error.message });
-  }
 };
