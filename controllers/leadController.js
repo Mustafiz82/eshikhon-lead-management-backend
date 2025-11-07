@@ -181,7 +181,7 @@ export const getAllLeads = async (req, res) => {
                 $lt: bdNow,   // strictly before current date-time
             };
         }
-
+        
         if (lock && lock !== "All") {
             filter.isLocked = lock == "Locked" ? true : false
         }
