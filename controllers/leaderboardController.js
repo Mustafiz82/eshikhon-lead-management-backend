@@ -26,7 +26,7 @@ export const getLeaderboards = async (req, res) => {
       {
         $lookup: {
           from: "courses",
-          let: { topic: "$seminarTopic", type: "$seminarType" },
+          let: { topic: "$interstedCourse", type: "$interstedCourseType" },
           pipeline: [
             {
               $match: {
@@ -80,7 +80,7 @@ export const getLeaderboards = async (req, res) => {
 
       // Stage 5: Exclude admins from the leaderboard.
       { $match: { "userData.role": { $ne: "admin" } } },
-      
+
       // Stage 6: Calculate the final derived metrics for each user.
       {
         $addFields: {
@@ -315,7 +315,7 @@ export const getAgentleadState = async (req, res) => {
       {
         $lookup: {
           from: "courses",
-          let: { topic: "$seminarTopic", type: "$seminarType" },
+          let: { topic: "$interstedCourse", type: "$interstedCourseType" },
           pipeline: [
             {
               $match: {
@@ -380,7 +380,32 @@ export const getAgentleadState = async (req, res) => {
               ],
             },
           },
-          // Add other counts here using the same $sum + $cond pattern...
+
+
+           connectedCallCount: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    "$leadStatus",
+                    [
+                      "Enrolled",
+                      "Will Join on Seminar",
+                      "Joined on seminar",
+                      "Not Interested",
+                      "Enrolled in Other Institute",
+                    ],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+
+            // Add other counts here using the same $sum + $cond pattern...
+          },
+          
+         
         },
       },
 
@@ -455,6 +480,8 @@ export const getAgentleadState = async (req, res) => {
           },
         },
       },
+      
+
 
       // Stage 7: Clean up the final output
       {

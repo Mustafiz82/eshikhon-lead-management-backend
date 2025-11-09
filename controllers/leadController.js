@@ -11,7 +11,7 @@ export const createLead = async (req, res) => {
         leads = leads.map(lead => ({
             ...lead,
             phone: String(lead.phone)?.trim(),
-            seminarTopic: lead.seminarTopic?.trim() || "not provided",
+            interstedCourse: lead.interstedCourse?.trim() || "not provided",
         }));
 
         if (leads.length === 0) {
@@ -22,7 +22,7 @@ export const createLead = async (req, res) => {
         const seenPairs = new Set();
         const uniqueIncoming = [];
         for (const l of leads) {
-            const key = `${l.phone}-${l.seminarTopic}`;
+            const key = `${l.phone}-${l.interstedCourse}`;
             if (!seenPairs.has(key)) {
                 seenPairs.add(key);
                 uniqueIncoming.push(l);
@@ -34,20 +34,20 @@ export const createLead = async (req, res) => {
             {
                 $or: uniqueIncoming.map(l => ({
                     phone: l.phone,
-                    seminarTopic: l.seminarTopic,
+                    interstedCourse: l.interstedCourse,
                 })),
             },
-            { phone: 1, seminarTopic: 1 }
+            { phone: 1, interstedCourse: 1 }
         ).lean();
 
         // Step 4️⃣ — Create a Set of existing pairs
         const existingPairs = new Set(
-            existing.map(e => `${e.phone}-${e.seminarTopic}`)
+            existing.map(e => `${e.phone}-${e.interstedCourse}`)
         );
 
         // Step 5️⃣ — Keep only truly new ones
         const newLeads = uniqueIncoming.filter(
-            l => !existingPairs.has(`${l.phone}-${l.seminarTopic}`)
+            l => !existingPairs.has(`${l.phone}-${l.interstedCourse}`)
         );
 
         if (newLeads.length === 0) {
@@ -98,6 +98,7 @@ export const getAllLeads = async (req, res) => {
             course,
             search,
             sort,
+            interstedSeminar,
             limit,
             currentPage,
             createdBy,
@@ -127,7 +128,7 @@ export const getAllLeads = async (req, res) => {
         }
 
         if (course && course !== "All") {
-            filter.seminarTopic = course
+            filter.interstedCourse = course
         }
 
         if (search) {
@@ -149,6 +150,10 @@ export const getAllLeads = async (req, res) => {
 
         if (leadStatus && leadStatus !== "All") {
             filter.leadStatus = leadStatus
+        }
+
+        if (interstedSeminar && interstedSeminar !== "All") {
+            filter.interstedSeminar = interstedSeminar
         }
 
         if (stage && stage !== "All") {
@@ -202,13 +207,10 @@ export const getAllLeads = async (req, res) => {
         }
 
 
-
-
-
         let projection = null;
         if (fields === "table") {
             projection =
-                "_id name email phone address seminarTopic leadStatus assignStatus createdAt isLocked seminarType";
+                "_id name email phone address interstedCourse leadStatus assignStatus createdAt isLocked interstedCourseType";
         }
 
 
@@ -288,7 +290,7 @@ export const getLeadsCount = async (req, res) => {
         }
 
         if (course && course !== "All") {
-            filter.seminarTopic = course;
+            filter.interstedCourse = course;
         }
 
         if (search) {

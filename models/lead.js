@@ -12,22 +12,22 @@ const leadSchema = new mongoose.Schema(
      
     },
     questions: { type: mongoose.Schema.Types.Mixed },   // other will be in quesiont preoper , seminarSource add , source file name
-    seminarTopic: {
+    interstedCourse: {
       type: String,
       default: "not provided"
     },
-    seminarType: { type: String, enum: ["Online", "Offline", "Video"], required: true },
+    interstedCourseType: { type: String, enum: ["Online", "Offline", "Video"], required: true },
     createdBy: { type: String, required: true },
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
     assignDate: { type: Date },
-
     leadType: { type: String, enum: ["potential leads", "open Pool"], default: "potential leads" },
     leadSource: {
       type: String,
       default: "seminar"
 
     },
+    interstedSeminar : { type: String, enum: ["Online", "Offline", "None"], default : "None"},
     enrolledTo: { type: String },
     leadStatus: {
       type: String,
