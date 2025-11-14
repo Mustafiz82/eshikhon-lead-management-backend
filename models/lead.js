@@ -25,7 +25,6 @@ const leadSchema = new mongoose.Schema(
     leadSource: {
       type: String,
       default: "seminar"
-
     },
     interstedSeminar : { type: String, enum: ["Online", "Offline", "None"], default : "None"},
     enrolledTo: { type: String },
@@ -76,7 +75,7 @@ const leadSchema = new mongoose.Schema(
       default: 0
     },
 
-    isLocked : {
+    isLocked : { 
         type : Boolean,
         default : false
     },

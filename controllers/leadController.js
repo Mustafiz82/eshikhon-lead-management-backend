@@ -140,7 +140,7 @@ export const getAllLeads = async (req, res) => {
 
         }
 
-        if (assignTo && assignTo !== "null") {
+        if (assignTo && assignTo !== "All") {
             filter.assignTo = assignTo
         }
 
