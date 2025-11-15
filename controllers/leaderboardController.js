@@ -382,30 +382,44 @@ export const getAgentleadState = async (req, res) => {
           },
 
 
-           connectedCallCount: {
+          connectedCallCount: {
             $sum: {
               $cond: [
                 {
-                  $in: [
-                    "$leadStatus",
-                    [
-                      "Enrolled",
-                      "Will Join on Seminar",
-                      "Joined on seminar",
-                      "Not Interested",
-                      "Enrolled in Other Institute",
-                    ],
+                  $and: [
+                    // 1. Status is connected
+                    {
+                      $in: [
+                        "$leadStatus",
+                        [
+                          "Enrolled",
+                          "Will Join on Seminar",
+                          "Joined on seminar",
+                          "Not Interested",
+                          "Enrolled in Other Institute",
+                          "Call declined",
+                          "Call later",
+                        ],
+                      ],
+                    },
+
+                    // 2. assignDate is TODAY
+                    {
+                      $gte: ["$assignDate", new Date(new Date().setHours(0, 0, 0, 0))]
+                    },
+                    {
+                      $lt: ["$assignDate", new Date(new Date().setHours(23, 59, 59, 999))]
+                    }
                   ],
                 },
                 1,
                 0,
               ],
             },
-
-            // Add other counts here using the same $sum + $cond pattern...
           },
-          
-         
+
+
+
         },
       },
 
@@ -480,7 +494,7 @@ export const getAgentleadState = async (req, res) => {
           },
         },
       },
-      
+
 
 
       // Stage 7: Clean up the final output
