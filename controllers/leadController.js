@@ -112,6 +112,7 @@ export const getAllLeads = async (req, res) => {
             fields,
             lock,
             leadSource,
+            upcomingPaymentsDate,
             missedFollowUpDate } = req.query
 
         console.log(showOnlyFollowups, status, course, search, sort, limit, currentPage, createdBy, assignTo)
@@ -176,6 +177,29 @@ export const getAllLeads = async (req, res) => {
             if (start && end) filter.followUpDate = { $gte: start, $lte: end };
         }
 
+        if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
+
+            if (upcomingPaymentsDate === "All") {
+                // If "All" is selected, find all leads with a payment date from today onwards.
+                const now = new Date();
+                const localNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+                const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
+
+                filter.nextEstimatedPaymentDate = {
+                    $exists: true,
+                    $gte: startOfToday
+                };
+
+            } else {
+                // This handles all other date ranges: "Today", "Next 7 Days", "Pick a date", etc.
+                const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
+                if (start && end) {
+                    filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
+                }
+            }
+        }
+
+
         if (showOnlyMissedFollowUps === "true") {
             const now = new Date();
             const bdNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
@@ -186,7 +210,15 @@ export const getAllLeads = async (req, res) => {
                 $lt: bdNow,   // strictly before current date-time
             };
         }
-        
+
+        if (missedFollowUpDate && missedFollowUpDate !== "All") {
+            const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
+            if (start && end) {
+                followFilter.$gte = start;
+                followFilter.$lte = end;
+            }
+        }
+
         if (lock && lock !== "All") {
             filter.isLocked = lock == "Locked" ? true : false
         }
@@ -280,7 +312,7 @@ export const getLeadsCount = async (req, res) => {
             showOnlyFollowups,
             followUpDate,
             showOnlyMissedFollowUps,
-            missedFollwUpDate
+            missedFollowUpDate
         } = req.query;
 
         const filter = {};
@@ -327,10 +359,6 @@ export const getLeadsCount = async (req, res) => {
             filter.followUpDate = { $exists: true, $ne: null };
         }
 
-        if (followUpDate && followUpDate !== "All") {
-            const { start, end } = getDateRange(followUpDate, "followup");
-            if (start && end) filter.followUpDate = { $gte: start, $lte: end };
-        }
 
         if (showOnlyMissedFollowUps === "true") {
             const now = new Date();
@@ -345,8 +373,8 @@ export const getLeadsCount = async (req, res) => {
             };
         }
 
-        if (missedFollwUpDate && missedFollwUpDate !== "All") {
-            const { start, end } = getDateRange(missedFollwUpDate, "missedFollowup");
+        if (missedFollowUpDate && missedFollowUpDate !== "All") {
+            const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
             const now = new Date();
             const bdNow = new Date(
                 now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" })
@@ -358,6 +386,12 @@ export const getLeadsCount = async (req, res) => {
                 $lt: bdNow,  // already missed
                 ...(start && end ? { $gte: start, $lte: end } : {})
             };
+        }
+
+
+        if (followUpDate && followUpDate !== "All") {
+            const { start, end } = getDateRange(followUpDate, "followup");
+            if (start && end) filter.followUpDate = { $gte: start, $lte: end };
         }
 
 
@@ -505,6 +539,35 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
         end.setDate(start.getDate() + 30);
         end.setHours(23, 59, 59, 999);
     }
+
+
+    // ------------------------
+    // LAST ranges
+    // ------------------------
+    if (type === "Last 3 Days") {
+        start = new Date(localNow);
+        start.setDate(localNow.getDate() - 3);
+        start.setHours(0, 0, 0, 0);
+
+        end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    if (type === "Last 7 Days") {
+        start = new Date(localNow);
+        start.setDate(localNow.getDate() - 7);
+        start.setHours(0, 0, 0, 0);
+
+        end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    if (type === "Last 30 Days") {
+        start = new Date(localNow);
+        start.setDate(localNow.getDate() - 30);
+        start.setHours(0, 0, 0, 0);
+
+        end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
 
     // ------------------------
     // Custom single date (dd/mm/yyyy OR yyyy-mm-dd)
