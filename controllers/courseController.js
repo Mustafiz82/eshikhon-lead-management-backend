@@ -4,7 +4,7 @@ import course from "../models/course.js";
 /** Create */
 export const createCource = async (req, res) => {
     try {
-
+        console.log(req.body)   
         const cource = await course.create(req.body);
         return res.status(201).json(cource);
     } catch (err) {
@@ -95,7 +95,7 @@ export const updateCource = async (req, res) => {
         const { id } = req.params;
 
         // Only allow known fields
-        const allowed = ["name", "type", "price"];
+        const allowed = ["name", "type", "price" , "code"];
         const payload = Object.fromEntries(
             Object.entries(req.body || {}).filter(([k]) => allowed.includes(k))
         );
