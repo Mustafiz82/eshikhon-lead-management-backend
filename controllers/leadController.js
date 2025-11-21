@@ -77,7 +77,7 @@ export const createLead = async (req, res) => {
 
 
 export const createSingleLead = async (req, res) => {
-    console.log("hit")
+    console.log(req.body)
     try {
         const result = await lead.insertOne(req.body)
         res.status(201).json(result)

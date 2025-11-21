@@ -382,12 +382,48 @@ export const getAgentleadState = async (req, res) => {
           },
 
 
-          connectedCallCount: {
+          // connectedCallCount: {
+          //   $sum: {
+          //     $cond: [
+          //       {
+          //         $and: [
+          //           // 1. Status is connected
+          //           {
+          //             $in: [
+          //               "$leadStatus",
+          //               [
+          //                 "Enrolled",
+          //                 "Will Join on Seminar",
+          //                 "Joined on seminar",
+          //                 "Not Interested",
+          //                 "Enrolled in Other Institute",
+          //                 "Call declined",
+          //                 "Call later",
+          //               ],
+          //             ],
+          //           },
+
+          //           // 2. assignDate is TODAY
+          //           {
+          //             $gte: ["$assignDate", new Date(new Date().setHours(0, 0, 0, 0))]
+          //           },
+          //           {
+          //             $lt: ["$assignDate", new Date(new Date().setHours(23, 59, 59, 999))]
+          //           }
+          //         ],
+          //       },
+          //       1,
+          //       0,
+          //     ],
+          //   },
+          // },
+
+          connectedCallCountToday: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    // 1. Status is connected
+                    // Condition A: Status is Connected
                     {
                       $in: [
                         "$leadStatus",
@@ -402,17 +438,49 @@ export const getAgentleadState = async (req, res) => {
                         ],
                       ],
                     },
-
-                    // 2. assignDate is TODAY
+                    // Condition B: The Update happened TODAY
+                    // We use 'updatedAt' here, NOT 'assignDate'
                     {
-                      $gte: ["$assignDate", new Date(new Date().setHours(0, 0, 0, 0))]
+                      $gte: ["$updatedAt", new Date(new Date().setHours(0, 0, 0, 0))],
                     },
-                    {
-                      $lt: ["$assignDate", new Date(new Date().setHours(23, 59, 59, 999))]
-                    }
                   ],
                 },
                 1,
+                0,
+              ],
+            },
+          },
+
+
+          followUpCount: {
+            $sum: {
+              $cond: [
+                { $gt: ["$followUpDate", null] }, // Checks if the date exists and is not null
+                1,
+                0,
+              ],
+            },
+          },
+
+
+          totalConnectedCallCount: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    "$leadStatus",
+                    [
+                      "Enrolled",
+                      "Will Join on Seminar",
+                      "Joined on seminar",
+                      "Not Interested",
+                      "Enrolled in Other Institute",
+                      "Call declined",
+                      "Call later",
+                    ],
+                  ],
+                },
+                1, // If status matches, count it (Stage 1 already filtered the date)
                 0,
               ],
             },
