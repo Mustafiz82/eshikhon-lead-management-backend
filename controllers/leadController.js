@@ -312,19 +312,27 @@ export const getLeadsCount = async (req, res) => {
             showOnlyFollowups,
             followUpDate,
             showOnlyMissedFollowUps,
-            missedFollowUpDate
+            missedFollowUpDate,
+            // Added missing params
+            interstedSeminar,
+            lock,
+            leadSource,
+            upcomingPaymentsDate
         } = req.query;
 
         const filter = {};
 
+        // 1. Status
         if (status && status !== "All") {
             filter.assignStatus = status;
         }
 
+        // 2. Course
         if (course && course !== "All") {
             filter.interstedCourse = course;
         }
 
+        // 3. Search
         if (search) {
             filter.$or = [
                 { name: { $regex: search, $options: "i" } },
@@ -333,46 +341,85 @@ export const getLeadsCount = async (req, res) => {
             ];
         }
 
-        if (assignTo) {
+        // 4. AssignTo (FIXED: Added check for "All")
+        if (assignTo && assignTo !== "All") {
             filter.assignTo = assignTo;
         }
 
+        // 5. CreatedBy
         if (createdBy) {
             filter.createdBy = createdBy;
         }
 
+        // 6. LeadStatus
         if (leadStatus && leadStatus !== "All") {
             filter.leadStatus = leadStatus;
         }
 
+        // 7. Seminar (ADDED)
+        if (interstedSeminar && interstedSeminar !== "All") {
+            filter.interstedSeminar = interstedSeminar;
+        }
+
+        // 8. Stage
         if (stage && stage !== "All") {
             if (stage === "Pending") filter.leadStatus = stage;
             else filter.leadStatus = { $ne: "Pending" };
         }
 
+        // 9. AssignDate
         if (assignDate && assignDate !== "All") {
             const { start, end } = getDateRange(assignDate, "assign");
             if (start && end) filter.assignDate = { $gte: start, $lte: end };
         }
 
+        // 10. Follow Ups Existence
         if (showOnlyFollowups === "true") {
             filter.followUpDate = { $exists: true, $ne: null };
         }
 
+        // 11. Follow Up Date Range
+        if (followUpDate && followUpDate !== "All") {
+            const { start, end } = getDateRange(followUpDate, "followup");
+            if (start && end) filter.followUpDate = { $gte: start, $lte: end };
+        }
 
+        // 12. Upcoming Payments (ADDED)
+        if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
+            if (upcomingPaymentsDate === "All") {
+                const now = new Date();
+                const localNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+                const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
+                
+                filter.nextEstimatedPaymentDate = {
+                    $exists: true,
+                    $gte: startOfToday
+                };
+            } else {
+                const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
+                if (start && end) {
+                    filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
+                }
+            }
+        }
+
+        // 13. Missed Follow Ups Boolean
         if (showOnlyMissedFollowUps === "true") {
             const now = new Date();
             const bdNow = new Date(
                 now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" })
             );
 
+            // Use spread to merge if followUpDate already exists from previous filters
             filter.followUpDate = {
+                ...filter.followUpDate,
                 $exists: true,
                 $ne: null,
-                $lt: bdNow, // strictly before now
+                $lt: bdNow,
             };
         }
 
+        // 14. Missed Follow Up Date (FIXED LOGIC)
         if (missedFollowUpDate && missedFollowUpDate !== "All") {
             const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
             const now = new Date();
@@ -381,19 +428,23 @@ export const getLeadsCount = async (req, res) => {
             );
 
             filter.followUpDate = {
+                ...filter.followUpDate,
                 $exists: true,
                 $ne: null,
-                $lt: bdNow,  // already missed
+                $lt: bdNow,
                 ...(start && end ? { $gte: start, $lte: end } : {})
             };
         }
 
-
-        if (followUpDate && followUpDate !== "All") {
-            const { start, end } = getDateRange(followUpDate, "followup");
-            if (start && end) filter.followUpDate = { $gte: start, $lte: end };
+        // 15. Lock (ADDED)
+        if (lock && lock !== "All") {
+            filter.isLocked = lock == "Locked" ? true : false;
         }
 
+        // 16. Lead Source (ADDED)
+        if (leadSource && leadSource !== "All") {
+            filter.leadSource = leadSource;
+        }
 
         console.log(filter, "count filter");
 
@@ -404,7 +455,6 @@ export const getLeadsCount = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
-
 
 
 export const updateLeads = async (req, res) => {

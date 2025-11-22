@@ -2,12 +2,12 @@ import mongoose from "mongoose";
 
 const leadSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },
+    name: { type: String,  trim: true },
     phone: { type: String, required: true, trim: true,  },
     address: { type: String, trim: true },
     email: {
       type: String,
-      required: true,
+      
       lowercase: true,
      
     },
@@ -16,7 +16,7 @@ const leadSchema = new mongoose.Schema(
       type: String,
       default: "not provided"
     },
-    interstedCourseType: { type: String, enum: ["Online", "Offline", "Video"], required: true },
+    interstedCourseType: { type: String, enum: ["Online", "Offline", "Video"], default : "Online" },
     createdBy: { type: String, required: true },
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
@@ -125,3 +125,4 @@ leadSchema.index({ createdAt: -1 });
 
 
 export default mongoose.model("Lead", leadSchema);
+
