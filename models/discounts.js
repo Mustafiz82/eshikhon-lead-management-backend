@@ -13,8 +13,8 @@ const DiscountSchema = new Schema(
         minValue: { type: Number, default: null },
         maxValue: { type: Number, default: null, },
         capAmount: { type: Number, default: null, },
-        startAt: { type: Date, required: true, },
-        expireAt: { type: Date, required: true, index: true, },
+        startAt: { type: Date, default: Date.now, },
+        expireAt: { type: Date, index: true, default: () => new Date(new Date().setFullYear(new Date().getFullYear() + 100)) },
 
         appliesTo: [
             { type: Schema.Types.ObjectId, ref: "Course", index: true }
@@ -65,7 +65,7 @@ DiscountSchema.pre("validate", function (next) {
         }
     } else {
         // amount mode: values must be > 0 (if present)
-        const pos = (v, label) => (v != null && v <= 0 ? `${label} must be greater than 0` : null);
+        const pos = (v, label) => (v != null && v < 0 ? `${label} must be greater than 0` : null);
         const err = pos(d.value, "value") || pos(d.minValue, "minValue") || pos(d.maxValue, "maxValue");
         if (err) return next(new Error(err));
         if (d.minValue != null && d.maxValue != null && d.minValue > d.maxValue) {
@@ -74,7 +74,7 @@ DiscountSchema.pre("validate", function (next) {
     }
 
     if (d.authority === "committed") {
-        
+
         if (d.value == null) {
             return next(new Error("Committed discounts require a fixed 'value'"));
         }
