@@ -26,21 +26,21 @@ const leadSchema = new mongoose.Schema(
       type: String,
       default: "seminar"
     },
-    interstedSeminar : { type: String, enum: ["Online", "Offline", "None"], default : "None"},
+    interstedSeminar : { type: String, enum: ["Joined" ,"Online", "Offline", "None"], default : "None"},
     enrolledTo: { type: String },
     leadStatus: {
       type: String,
       enum: [
         "Enrolled",
-        "Will Join on Seminar",
-        "Joined on seminar",
         "Not Interested",
         "Enrolled in Other Institute",
-        "Call declined",
         "Call later",
         "Call Not Received",
         "Number Off or Busy",
         "Wrong Number",
+        "Will Register" , 
+        "Already Enrolled",
+        "On hold",
         "Pending"
       ],
       default: "Pending"

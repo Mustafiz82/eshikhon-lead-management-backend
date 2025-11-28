@@ -6,13 +6,33 @@ export const createLead = async (req, res) => {
     try {
         // Always work with an array
         let leads = Array.isArray(req.body) ? req.body : [req.body];
-
+        
         // Step 1️⃣ — Normalize values
-        leads = leads.map(lead => ({
-            ...lead,
-            phone: String(lead.phone)?.trim(),
-            interstedCourse: lead.interstedCourse?.trim() || "not provided",
-        }));
+        leads = leads.map(lead => {
+            
+            let seminarStatus = lead.interstedSeminar || "None"; 
+            // --- LOGIC START ---
+            // Check if source is 'seminar' (case insensitive)
+            if (lead.leadSource && typeof lead.leadSource === 'string') {
+
+                // Convert to lowercase and check if it INCLUDES the word "seminar"
+                const sourceLower = lead.leadSource.toLowerCase();
+
+                if (sourceLower.includes("seminar")) {
+                    seminarStatus = "Joined";
+                }
+            }
+
+
+            // --- LOGIC END ---
+
+            return {
+                ...lead,
+                phone: String(lead.phone)?.trim(),
+                interstedCourse: lead.interstedCourse?.trim() || "not provided",
+                interstedSeminar: seminarStatus // <--- Apply the calculated status
+            };
+        });
 
         if (leads.length === 0) {
             return res.status(400).json({ error: "No leads provided" });
@@ -390,7 +410,7 @@ export const getLeadsCount = async (req, res) => {
                 const now = new Date();
                 const localNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
                 const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
-                
+
                 filter.nextEstimatedPaymentDate = {
                     $exists: true,
                     $gte: startOfToday
