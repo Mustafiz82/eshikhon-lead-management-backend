@@ -8,29 +8,13 @@ export const createLead = async (req, res) => {
         let leads = Array.isArray(req.body) ? req.body : [req.body];
         
         // Step 1️⃣ — Normalize values
-        leads = leads.map(lead => {
-            
-            let seminarStatus = lead.interstedSeminar || "None"; 
-            // --- LOGIC START ---
-            // Check if source is 'seminar' (case insensitive)
-            if (lead.leadSource && typeof lead.leadSource === 'string') {
-
-                // Convert to lowercase and check if it INCLUDES the word "seminar"
-                const sourceLower = lead.leadSource.toLowerCase();
-
-                if (sourceLower.includes("seminar")) {
-                    seminarStatus = "Joined";
-                }
-            }
-
-
-            // --- LOGIC END ---
+        leads = leads.map(lead => { 
 
             return {
                 ...lead,
                 phone: String(lead.phone)?.trim(),
                 interstedCourse: lead.interstedCourse?.trim() || "not provided",
-                interstedSeminar: seminarStatus // <--- Apply the calculated status
+                
             };
         });
 
@@ -93,7 +77,6 @@ export const createLead = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
 
 
 export const createSingleLead = async (req, res) => {

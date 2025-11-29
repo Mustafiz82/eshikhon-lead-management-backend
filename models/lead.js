@@ -24,7 +24,7 @@ const leadSchema = new mongoose.Schema(
     leadType: { type: String, enum: ["potential leads", "open Pool"], default: "potential leads" },
     leadSource: {
       type: String,
-      default: "seminar"
+      default: "Not Provided"
     },
     interstedSeminar : { type: String, enum: ["Joined" ,"Online", "Offline", "None"], default : "None"},
     enrolledTo: { type: String },
