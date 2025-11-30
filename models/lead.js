@@ -41,7 +41,8 @@ const leadSchema = new mongoose.Schema(
         "Will Register" , 
         "Already Enrolled",
         "On hold",
-        "Pending"
+        "Pending",
+        "Refunded"  
       ],
       default: "Pending"
 
@@ -86,6 +87,8 @@ const leadSchema = new mongoose.Schema(
 
     totalPaid: { type: Number, default: 0 },   // cumulative
     totalDue: { type: Number, default: 0 },
+
+      refundAmount : { type: Number, default: 0 },
 
     lastPayment: {
       date: { type: Date },

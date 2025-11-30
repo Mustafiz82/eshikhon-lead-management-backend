@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { createLead, createSingleLead, deleteLeads, getAllLeads, getLeadsCount, getLeadSources, markJoinedFromAttendance, updateLeads, updateSingleLead } from "../controllers/leadController.js"
+import { createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, markJoinedFromAttendance, updateLeads, updateSingleLead } from "../controllers/leadController.js"
 
 export const leadRoute = Router()
 
@@ -8,6 +8,7 @@ leadRoute.post("/single-lead", createSingleLead)
 leadRoute.get("/", getAllLeads)
 leadRoute.get("/count", getLeadsCount)
 leadRoute.get("/source", getLeadSources)
+leadRoute.get("/intersted-course", getInterestedCourses)
 leadRoute.patch("/", updateLeads)
 leadRoute.patch("/:id", updateSingleLead)
 leadRoute.post("/mark-attendence", markJoinedFromAttendance)

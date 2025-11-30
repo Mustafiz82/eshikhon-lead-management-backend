@@ -1,20 +1,21 @@
 import mongoose from "mongoose"
 import lead from "../models/lead.js"
+import course from "../models/course.js";
 
 
 export const createLead = async (req, res) => {
     try {
         // Always work with an array
         let leads = Array.isArray(req.body) ? req.body : [req.body];
-        
+
         // Step 1️⃣ — Normalize values
-        leads = leads.map(lead => { 
+        leads = leads.map(lead => {
 
             return {
                 ...lead,
                 phone: String(lead.phone)?.trim(),
                 interstedCourse: lead.interstedCourse?.trim() || "not provided",
-                
+
             };
         });
 
@@ -296,6 +297,56 @@ export const getLeadSources = async (req, res) => {
     }
 };
 
+
+export const getInterestedCourses = async (req, res) => {
+    try {
+        console.log("hit /getInterestedCourses");
+
+        // 1. Get unique 'interstedCourse' from the Lead collection
+        // We use Promise.all to run both database queries at the same time for speed
+        const [leadCourses, dbCourses] = await Promise.all([
+            // Query 1: Aggregate unique courses from Leads
+            lead.aggregate([
+                {
+                    $match: {
+                        interstedCourse: { $exists: true, $ne: null, $ne: "" }
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$interstedCourse"
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        name: "$_id"
+                    }
+                }
+            ]),
+
+            // Query 2: Get all official course names from Course collection
+            course.find({}, { name: 1, _id: 0 })
+        ]);
+
+        // 2. Extract arrays of strings
+        const leadCourseNames = leadCourses.map(item => item.name);
+        const dbCourseNames = dbCourses.map(item => item.name);
+
+        // 3. Merge both arrays and remove duplicates using Set
+        // This ensures if "Web Dev" is in both Leads and Course, it only appears once
+        const uniqueCourses = [...new Set([...leadCourseNames, ...dbCourseNames])];
+
+        // Optional: Sort them alphabetically
+        uniqueCourses.sort();
+
+        res.status(200).json(uniqueCourses);
+
+    } catch (error) {
+        console.error("Error fetching course filters:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
 
 
 
