@@ -3,6 +3,87 @@ import lead from "../models/lead.js"
 import course from "../models/course.js";
 
 
+// export const createLead = async (req, res) => {
+//     try {
+//         // Always work with an array
+//         let leads = Array.isArray(req.body) ? req.body : [req.body];
+
+//         // Step 1️⃣ — Normalize values
+//         leads = leads.map(lead => {
+
+//             return {
+//                 ...lead,
+//                 phone: String(lead.phone)?.trim(),
+//                 interstedCourse: lead.interstedCourse?.trim() || "not provided",
+
+//             };
+//         });
+
+//         if (leads.length === 0) {
+//             return res.status(400).json({ error: "No leads provided" });
+//         }
+
+//         // Step 2️⃣ — Remove duplicates inside the same upload
+//         const seenPairs = new Set();
+//         const uniqueIncoming = [];
+//         for (const l of leads) {
+//             const key = `${l.phone}-${l.interstedCourse}`;
+//             if (!seenPairs.has(key)) {
+//                 seenPairs.add(key);
+//                 uniqueIncoming.push(l);
+//             }
+//         }
+
+//         // Step 3️⃣ — Find which of these already exist in the DB
+//         const existing = await lead.find(
+//             {
+//                 $or: uniqueIncoming.map(l => ({
+//                     phone: l.phone,
+//                     interstedCourse: l.interstedCourse,
+//                 })),
+//             },
+//             { phone: 1, interstedCourse: 1 }
+//         ).lean();
+
+//         // Step 4️⃣ — Create a Set of existing pairs
+//         const existingPairs = new Set(
+//             existing.map(e => `${e.phone}-${e.interstedCourse}`)
+//         );
+
+//         // Step 5️⃣ — Keep only truly new ones
+//         const newLeads = uniqueIncoming.filter(
+//             l => !existingPairs.has(`${l.phone}-${l.interstedCourse}`)
+//         );
+
+//         if (newLeads.length === 0) {
+//             return res.status(200).json({
+//                 ok: false,
+//                 message: "All leads are duplicates .",
+//                 insertedCount: 0,
+//                 skippedCount: leads.length,
+//             });
+//         }
+
+//         // Step 6️⃣ — Insert unique leads
+//         const inserted = await lead.insertMany(newLeads);
+
+    
+
+
+//         return res.status(201).json({
+//             ok: true,
+//             message: `${inserted.length} new leads added, ${leads.length - inserted.length} skipped.`,
+//             insertedCount: inserted.length,
+//             skippedCount: leads.length - inserted.length,
+//             failedToInsert : failedToInsert
+//         });
+//     } catch (error) {
+//         console.error("createLead error:", error);
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
+
 export const createLead = async (req, res) => {
     try {
         // Always work with an array
@@ -10,12 +91,10 @@ export const createLead = async (req, res) => {
 
         // Step 1️⃣ — Normalize values
         leads = leads.map(lead => {
-
             return {
                 ...lead,
                 phone: String(lead.phone)?.trim(),
                 interstedCourse: lead.interstedCourse?.trim() || "not provided",
-
             };
         });
 
@@ -23,62 +102,87 @@ export const createLead = async (req, res) => {
             return res.status(400).json({ error: "No leads provided" });
         }
 
+        // Initialize arrays for our categories
+        const duplicatesInPayload = [];
+        const duplicatesInDB = [];
+        const uniqueIncoming = []; // These are candidates for DB check
+
         // Step 2️⃣ — Remove duplicates inside the same upload
         const seenPairs = new Set();
-        const uniqueIncoming = [];
+
         for (const l of leads) {
             const key = `${l.phone}-${l.interstedCourse}`;
-            if (!seenPairs.has(key)) {
+
+            if (seenPairs.has(key)) {
+                // Category 1: Duplicate inside the uploaded file
+                duplicatesInPayload.push(l);
+            } else {
                 seenPairs.add(key);
                 uniqueIncoming.push(l);
             }
         }
 
-        // Step 3️⃣ — Find which of these already exist in the DB
-        const existing = await lead.find(
-            {
-                $or: uniqueIncoming.map(l => ({
-                    phone: l.phone,
-                    interstedCourse: l.interstedCourse,
-                })),
-            },
-            { phone: 1, interstedCourse: 1 }
-        ).lean();
+        // Step 3️⃣ — Find which of the unique candidates already exist in the DB
+        let existingPairs = new Set();
 
-        // Step 4️⃣ — Create a Set of existing pairs
-        const existingPairs = new Set(
-            existing.map(e => `${e.phone}-${e.interstedCourse}`)
-        );
+        if (uniqueIncoming.length > 0) {
+            const existing = await lead.find(
+                {
+                    $or: uniqueIncoming.map(l => ({
+                        phone: l.phone,
+                        interstedCourse: l.interstedCourse,
+                    })),
+                },
+                { phone: 1, interstedCourse: 1 }
+            ).lean();
 
-        // Step 5️⃣ — Keep only truly new ones
-        const newLeads = uniqueIncoming.filter(
-            l => !existingPairs.has(`${l.phone}-${l.interstedCourse}`)
-        );
-
-        if (newLeads.length === 0) {
-            return res.status(200).json({
-                ok: false,
-                message: "All leads are duplicates .",
-                insertedCount: 0,
-                skippedCount: leads.length,
-            });
+            // Create a Set for fast lookup
+            existingPairs = new Set(
+                existing.map(e => `${e.phone}-${e.interstedCourse}`)
+            );
         }
 
-        // Step 6️⃣ — Insert unique leads
-        const inserted = await lead.insertMany(newLeads);
+        // Step 4️⃣ — Separate New Leads from DB Duplicates
+        const newLeads = [];
 
+        for (const l of uniqueIncoming) {
+            const key = `${l.phone}-${l.interstedCourse}`;
+
+            if (existingPairs.has(key)) {
+                // Category 2: Already exists in the Database
+                duplicatesInDB.push(l);
+            } else {
+                // Truly new lead
+                newLeads.push(l);
+            }
+        }
+
+        // Step 5️⃣ — Insert unique leads (if any)    
+        let inserted = [];
+        if (newLeads.length > 0) {
+            inserted = await lead.insertMany(newLeads);
+        }
+
+        // Calculate totals
+        const totalSkipped = duplicatesInPayload.length + duplicatesInDB.length;
+
+        // Step 6️⃣ — Return the categorized response
         return res.status(201).json({
-            ok: true,
-            message: `${inserted.length} new leads added, ${leads.length - inserted.length} skipped.`,
+            ok: newLeads.length > 0, // True if at least one was inserted
+            message: `${inserted.length} new leads added, ${totalSkipped} skipped.`,
             insertedCount: inserted.length,
-            skippedCount: leads.length - inserted.length,
+            skippedCount: totalSkipped,
+            
+            // 🔹 The categorized skipped lists:
+            duplicatesInPayload: duplicatesInPayload,
+            duplicatesInDB: duplicatesInDB, 
         });
+
     } catch (error) {
         console.error("createLead error:", error);
         res.status(500).json({ error: error.message });
     }
 };
-
 
 export const createSingleLead = async (req, res) => {
     console.log(req.body)

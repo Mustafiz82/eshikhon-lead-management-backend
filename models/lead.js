@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const leadSchema = new mongoose.Schema(
   {
     name: { type: String,  trim: true },
-    phone: { type: String, required: true, trim: true,  },
+    phone: { type: String,  trim: true,  },
     address: { type: String, trim: true },
     email: {
       type: String,
