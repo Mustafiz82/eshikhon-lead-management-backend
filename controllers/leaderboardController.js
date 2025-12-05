@@ -11,11 +11,14 @@ export const getLeaderboards = async (req, res) => {
     // --- 1. Base Match Stage for Leads ---
     // We will filter the leads by date first for maximum performance.
     const leadMatch = {};
-    if (numericMonth) {
-      const startOfMonth = new Date(numericYear, numericMonth - 1, 1);
-      const endOfMonth = new Date(numericYear, numericMonth, 1);
-      leadMatch.assignDate = { $gte: startOfMonth, $lt: endOfMonth };
-    }
+    // if (numericMonth) {
+    //   const startOfMonth = new Date(numericYear, numericMonth - 1, 1);
+    //   const endOfMonth = new Date(numericYear, numericMonth, 1);
+    //   leadMatch.assignDate = { $gte: startOfMonth, $lt: endOfMonth };
+    // }
+    const startOfMonth = new Date(req.query.startDate);
+    const endOfMonth = new Date(req.query.endDate);
+    leadMatch.assignDate = { $gte: startOfMonth, $lt: endOfMonth };
 
     // --- Aggregation Pipeline ---
     const results = await Lead.aggregate([
@@ -155,13 +158,20 @@ export const getAdminLeadStats = async (req, res) => {
     const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 1);
+    const startOfMonth = new Date(req.query.startDate);
+    const endOfMonth = new Date(req.query.endDate);
+
+    console.log(startOfMonth, endOfMonth)
+
+
+
+    // const startOfMonth = new Date(year, month - 1, 1);
+    // const endOfMonth = new Date(year, month, 1);
 
     // --- PART A: INFLUX (Created Date) ---
     const createdFilter = { createdAt: { $gte: startOfMonth, $lt: endOfMonth } };
     const AssignedDateFilter = { assignDate: { $gte: startOfMonth, $lt: endOfMonth } };
-    
+
     const [totalLeads, totalAssignedCreated, totalUnassignedCreated] = await Promise.all([
       Lead.countDocuments(createdFilter),
       Lead.countDocuments({ ...AssignedDateFilter, assignStatus: true }),
@@ -200,10 +210,10 @@ export const getAdminLeadStats = async (req, res) => {
       {
         $group: {
           _id: "$assignTo",
-          
+
           // ... (Existing metrics: pending, basePrice, etc.) ...
           pendingCount: {
-             $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Pending"] }] }, 1, 0] }
+            $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Pending"] }] }, 1, 0] }
           },
           basePrice: {
             $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] }, "$effectivePrice", 0] }
@@ -248,13 +258,13 @@ export const getAdminLeadStats = async (req, res) => {
           },
 
           totalDue: {
-             $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Enrolled"] }] }, { $max: [{ $subtract: ["$effectivePrice", "$totalPaid"] }, 0] }, 0] }
+            $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Enrolled"] }] }, { $max: [{ $subtract: ["$effectivePrice", "$totalPaid"] }, 0] }, 0] }
           },
           unreachableCount: {
-             $sum: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }, { $in: ["$leadStatus", ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"]] }] }, 1, 0] }
+            $sum: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }, { $in: ["$leadStatus", ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"]] }] }, 1, 0] }
           },
           joinedOnSeminarCount: {
-             $sum: { $switch: { branches: [{ case: { $eq: [{ $toLower: { $ifNull: ["$leadSource", ""] } }, "seminar"] }, then: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] }, 1, 0] } }, { case: { $eq: ["$interstedSeminar", "Joined"] }, then: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }] }, 1, 0] } }], default: 0 } }
+            $sum: { $switch: { branches: [{ case: { $eq: [{ $toLower: { $ifNull: ["$leadSource", ""] } }, "seminar"] }, then: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] }, 1, 0] } }, { case: { $eq: ["$interstedSeminar", "Joined"] }, then: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }] }, 1, 0] } }], default: 0 } }
           }
         }
       },
@@ -314,7 +324,7 @@ export const getAdminLeadStats = async (req, res) => {
       totalLeads,
       totalUnassigned: totalUnassignedCreated,
       totalAssigned: totalAssignedCreated,
-      
+
       // Complex Stats
       totalEnrolled: complexStats.totalEnrolled || 0,
       totalPending: complexStats.totalPending || 0,
@@ -323,7 +333,7 @@ export const getAdminLeadStats = async (req, res) => {
       targetAmount: Math.round(complexStats.grandTotalTargetAmount || 0),
       commission: Math.round(complexStats.grandTotalCommission || 0),
       totalDue: complexStats.totalDue || 0,
-      
+
       // Refunds
       totalRefunds: complexStats.totalRefunds || 0,
       refundedCount: complexStats.totalRefundCount || 0, // <--- Return Count
@@ -348,8 +358,11 @@ export const getAgentleadState = async (req, res) => {
     }
 
     // --- 1. Date Ranges Setup ---
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 1);
+    // const startOfMonth = new Date(year, month - 1, 1);
+    // const endOfMonth = new Date(year, month, 1);
+
+    const startOfMonth = new Date(req.query.startDate);
+    const endOfMonth = new Date(req.query.endDate);
 
     // For Option C (Today's Activity)
     const startOfToday = new Date();
