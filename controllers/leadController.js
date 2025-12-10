@@ -644,38 +644,194 @@ export const updateLeads = async (req, res) => {
 
 
 
+// export const updateSingleLead = async (req, res) => {
+//     try {
+//         const { note: notes, paidAmount, ...rest } = req.body;
+
+//         const updateData = { $set: rest };
+
+//         // Handle notes
+//         if (notes && notes.length > 0) {
+//             updateData.$push = { ...(updateData.$push || {}), note: { $each: notes } };
+//         }
+
+//         // Handle payment
+
+
+//         console.log(paidAmount, "paid amoutn ")
+//         if (paidAmount && paidAmount > 0) {
+//             const paymentEntry = { paidAmount, date: new Date() };
+
+//             updateData.$inc = { ...(updateData.$inc || {}), totalPaid: paidAmount };
+//             updateData.$push = { ...(updateData.$push || {}), history: paymentEntry };
+//             updateData.$set = { ...(updateData.$set || {}), lastPayment: paymentEntry };
+//         }
+
+//         const updated = await lead.findByIdAndUpdate(
+//             req.params.id,
+//             updateData,
+//             { new: true, runValidators: true }
+//         );
+
+//         if (!updated) return res.status(404).json({ message: "Lead not found" });
+//         res.json(updated);
+//     } catch (e) {
+//         res.status(500).json({ message: e.message });
+//     }
+// };
+
+
+
 export const updateSingleLead = async (req, res) => {
     try {
-        const { note: notes, paidAmount, ...rest } = req.body;
+        const { id } = req.params;
+        const data = req.body;
+        const updates = {...data , lastContacted: Date.now() };
 
-        const updateData = { $set: rest };
+        const leadDoc = await lead.findById(id);
+        if (!leadDoc) return res.status(404).json({ message: "Lead not found" });
 
-        // Handle notes
-        if (notes && notes.length > 0) {
-            updateData.$push = { ...(updateData.$push || {}), note: { $each: notes } };
+        const currentUser = updates.lastModifiedBy || "Unknown User";
+
+        // 1. IGNORE LIST (Expanded to prevent "set paid Amount..." logs)
+        const ignoredFields = [
+            "_id", "createdAt", "updatedAt", "__v", 
+            "history", "note", "callCount", "lastContacted", 
+            "lastModifiedBy", "enrolledAt", "sourceFileName", 
+            "totalPaid", "lastPayment", "totalDue",
+            "paidAmount", "refundAmount" // <--- Added these so they don't appear in leftovers
+        ];
+
+        // 2. DETECT CHANGES
+        const changedFields = {}; 
+        for (const key in updates) {
+            if (ignoredFields.includes(key)) continue;
+
+            const oldValue = leadDoc[key];
+            const newValue = updates[key];
+
+            // Date Comparison
+            if (key === 'followUpDate' || key === 'assignDate' || key === 'nextEstimatedPaymentDate') {
+                const d1 = oldValue ? new Date(oldValue).toISOString().split('T')[0] : null;
+                const d2 = newValue ? new Date(newValue).toISOString().split('T')[0] : null;
+                if (d1 !== d2) {
+                    changedFields[key] = { old: d1 || "Not Set", new: d2 || "Not Set" };
+                }
+                continue;
+            }
+
+            // Standard Comparison
+            if (newValue !== undefined && oldValue != newValue) {
+                changedFields[key] = { old: oldValue, new: newValue };
+            }
         }
 
-        // Handle payment
+        // ======================================================
+        // 3. STORY FRAGMENTS ACCUMULATOR
+        // ======================================================
+        const storyParts = []; 
+        const handledKeys = new Set(); 
 
+        // SCENARIO A: ENROLLMENT
+        if (changedFields['leadStatus'] && updates.leadStatus === "Enrolled") {
+            // Smarter Price Logic: Look at updates first, then DB. Prefer Discounted, fallback to Original.
+            const price = updates.discountedPrice || updates.originalPrice || leadDoc.discountedPrice || leadDoc.originalPrice || 0;
+            const paid = Number(updates.paidAmount) || 0;
+            const due = updates.nextEstimatedPaymentDate 
+                ? new Date(updates.nextEstimatedPaymentDate).toISOString().split('T')[0] 
+                : "N/A";
 
-        console.log(paidAmount, "paid amoutn ")
-        if (paidAmount && paidAmount > 0) {
-            const paymentEntry = { paidAmount, date: new Date() };
+            storyParts.push(`enrolled the student (Price: ${price}, Paid: ${paid}, Next Due: ${due})`);
 
-            updateData.$inc = { ...(updateData.$inc || {}), totalPaid: paidAmount };
-            updateData.$push = { ...(updateData.$push || {}), history: paymentEntry };
-            updateData.$set = { ...(updateData.$set || {}), lastPayment: paymentEntry };
+            // Mark ALL enrollment-related fields as handled so they don't duplicate
+            const enrollmentFields = [
+                'leadStatus', 'originalPrice', 'discountedPrice', 
+                'leadDiscount', 'discountSource', 'nextEstimatedPaymentDate', 
+                'enrolledAt', 'discountUnit', 'discountPercent' // <--- Added Discount Unit/Percent here
+            ];
+            enrollmentFields.forEach(k => handledKeys.add(k));
         }
 
-        const updated = await lead.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        );
+        // SCENARIO B: REFUND
+        else if (changedFields['leadStatus'] && updates.leadStatus === "Refunded") {
+            const refAmt = updates.refundAmount || 0;
+            storyParts.push(`marked lead as Refunded and processed refund of ${refAmt}`);
+            handledKeys.add('leadStatus');
+            handledKeys.add('refundAmount'); // Technically ignored in loop, but good safety
+        }
 
-        if (!updated) return res.status(404).json({ message: "Lead not found" });
-        res.json(updated);
+        // SCENARIO C: PAYMENT ONLY
+        const incomingPayment = Number(updates.paidAmount);
+        if (incomingPayment > 0 && updates.leadStatus !== "Enrolled") {
+            storyParts.push(`received a payment of ${incomingPayment}`);
+        }
+
+        // SCENARIO D: STATUS + FOLLOW UP
+        if (changedFields['leadStatus'] && changedFields['followUpDate']) {
+            const newStatus = changedFields['leadStatus'].new;
+            const newDate = changedFields['followUpDate'].new;
+            storyParts.push(`changed status to "${newStatus}" and set follow-up for ${newDate}`);
+            
+            handledKeys.add('leadStatus');
+            handledKeys.add('followUpDate');
+        }
+
+        // SCENARIO E: LEFTOVERS
+        for (const key in changedFields) {
+            if (handledKeys.has(key)) continue; 
+
+            const { old: oldVal, new: newVal } = changedFields[key];
+            const readableKey = key.replace(/([A-Z])/g, ' $1').trim(); 
+
+            if (!oldVal || oldVal === "Not Set") {
+                storyParts.push(`set ${readableKey} to "${newVal}"`);
+            } else {
+                storyParts.push(`changed ${readableKey} from "${oldVal}" to "${newVal}"`);
+            }
+        }
+
+        // ======================================================
+        // 4. GENERATE THE SINGLE NOTE
+        // ======================================================
+        if (storyParts.length > 0) {
+            const finalMessage = `${currentUser} ${storyParts.join('. ')}.`;
+            leadDoc.note.push({
+                text: finalMessage,
+                by: currentUser
+            });
+        }
+
+        // ======================================================
+        // 5. APPLY UPDATES TO DB
+        // ======================================================
+        for (const key in updates) {
+            if (key === 'note' || key === 'history' || key === 'paidAmount') continue;
+            leadDoc[key] = updates[key];
+        }
+
+        if (incomingPayment > 0) {
+            const paymentEntry = { paidAmount: incomingPayment, date: new Date() };
+            leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
+            leadDoc.history.push(paymentEntry);
+            leadDoc.lastPayment = paymentEntry;
+            
+            const totalCost = leadDoc.discountedPrice > 0 ? leadDoc.discountedPrice : leadDoc.originalPrice;
+            if(totalCost > 0) leadDoc.totalDue = totalCost - leadDoc.totalPaid;
+        }
+
+        if (updates.note && updates.note.length > 0) {
+            const manualNotes = updates.note.map(n => ({
+                text: typeof n === 'string' ? n : n.text,
+                by: currentUser
+            }));
+            leadDoc.note.push(...manualNotes);
+        }
+
+        const savedLead = await leadDoc.save();
+        res.json(savedLead);
+
     } catch (e) {
+        console.error("Update Lead Error:", e);
         res.status(500).json({ message: e.message });
     }
 };

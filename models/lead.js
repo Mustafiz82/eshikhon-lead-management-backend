@@ -51,7 +51,7 @@ const leadSchema = new mongoose.Schema(
     discountUnit: {
       type: String,
       enum: ["percent", "flat"],
-      default: "percent"
+      default: "flat"
     },
 
     discountSource: {
@@ -111,6 +111,7 @@ const leadSchema = new mongoose.Schema(
     ],
 
     lastContacted: { type: Date },
+    lastModifiedBy : {type : String} ,
     enrolledAt : {type : Date},
     followUpDate: { type: Date },
     callCount: { type: Number, default: 0 },

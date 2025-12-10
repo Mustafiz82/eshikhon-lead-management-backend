@@ -1,0 +1,51 @@
+Date : 2025-12-08 16:20:42
+Directory : c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend
+Total : 21 files,  3151 codes, 314 comments, 483 blanks, all 3948 lines
+
+Languages
++------------+------------+------------+------------+------------+------------+
+| language   | files      | code       | comment    | blank      | total      |
++------------+------------+------------+------------+------------+------------+
+| JavaScript |         18 |      2,020 |        314 |        480 |      2,814 |
+| JSON       |          3 |      1,131 |          0 |          3 |      1,134 |
++------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                             | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                |         21 |      3,151 |        314 |        483 |      3,948 |
+| . (Files)                                                                                        |          4 |      1,169 |          3 |         16 |      1,188 |
+| config                                                                                           |          1 |         19 |          0 |          5 |         24 |
+| controllers                                                                                      |          6 |      1,675 |        302 |        373 |      2,350 |
+| models                                                                                           |          5 |        240 |          8 |         62 |        310 |
+| routes                                                                                           |          5 |         48 |          1 |         27 |         76 |
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| filename                                                                                         | language   | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\config\db.js                         | JavaScript |         19 |          0 |          5 |         24 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\courseController.js      | JavaScript |         96 |         14 |         18 |        128 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\discountController.js    | JavaScript |         65 |         30 |         17 |        112 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\fileHistoryController.js | JavaScript |         17 |          0 |          5 |         22 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\leadController.js        | JavaScript |        715 |        179 |        212 |      1,106 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\leaderboardController.js | JavaScript |        710 |         77 |         96 |        883 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\userController.js        | JavaScript |         72 |          2 |         25 |         99 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\index.js                             | JavaScript |         38 |          3 |         13 |         54 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\course.js                     | JavaScript |         13 |          0 |          2 |         15 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\discounts.js                  | JavaScript |         71 |          6 |         19 |         96 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\fileHistory.js                | JavaScript |          7 |          0 |          3 |         10 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\lead.js                       | JavaScript |        110 |          0 |         23 |        133 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\user.js                       | JavaScript |         39 |          2 |         15 |         56 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\package-lock.json                    | JSON       |      1,102 |          0 |          1 |      1,103 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\package.json                         | JSON       |         20 |          0 |          1 |         21 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\courseRoute.js                | JavaScript |          8 |          0 |          4 |         12 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\dashboard.js                  | JavaScript |          9 |          0 |          8 |         17 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\discountRoute.js              | JavaScript |          8 |          1 |          5 |         14 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\leadRoute.js                  | JavaScript |         13 |          0 |          4 |         17 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\userRoute.js                  | JavaScript |         10 |          0 |          6 |         16 |
+| c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\vercel.json                          | JSON       |          9 |          0 |          1 |         10 |
+| Total                                                                                            |            |      3,151 |        314 |        483 |      3,948 |
++--------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+

@@ -837,11 +837,9 @@ export const getDailyCallCount = async (req, res) => {
           lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
           leadStatus: {
             $in: [
-              "Enrolled",
-              "Will Join on Seminar",
-              "Joined on seminar",
-              "Not Interested",
-              "Enrolled in Other Institute"
+              "Enrolled", "Will Join on Seminar", "Joined on seminar",
+              "Not Interested", "Enrolled in Other Institute",
+              "Call declined", "Call later", "Will Register", "Already Enrolled", "On hold"
             ]
           }
         }
