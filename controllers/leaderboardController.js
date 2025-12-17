@@ -415,6 +415,7 @@ export const getAgentleadState = async (req, res) => {
           pipeline: [
             { $match: { $expr: { $and: [{ $eq: ["$name", "$$topic"] }, { $eq: ["$type", "$$type"] }] } } },
             { $project: { price: 1, _id: 0 } },
+            { $limit: 1 }
           ],
           as: "courseData",
         },
@@ -475,6 +476,72 @@ export const getAgentleadState = async (req, res) => {
                     0
                   ]
                 },
+                0
+              ]
+            }
+          },
+
+          totalDue: {
+            $sum: {
+              $cond: [
+                // 1. FILTER: Must be Assigned this Month AND Enrolled
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                    { $eq: ["$leadStatus", "Enrolled"] }
+                  ]
+                },
+                // 2. CALCULATION
+                {
+                  $max: [
+                    {
+                      $subtract: [
+                        // --- Step A: Price minus Discount ---
+                        {
+                          $subtract: [
+                            { $toDouble: "$originalPrice" }, // The Base Price
+                            {
+                              $switch: {
+                                branches: [
+                                  // CONDITION 1: FLAT (Keep the raw lead discount amount)
+                                  {
+                                    case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
+                                    then: { $toDouble: "$leadDiscount" }
+                                  },
+                                  // CONDITION 2: PERCENT (Calculate the actual amount)
+                                  {
+                                    case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
+                                    then: {
+                                      $multiply: [
+                                        { $toDouble: "$originalPrice" },
+                                        { $divide: [{ $toDouble: "$leadDiscount" }, 100] }
+                                      ]
+                                    }
+                                  }
+                                ],
+                                // Default: If no unit matches, Discount is 0
+                                default: 0
+                              }
+                            }
+                          ]
+                        },
+                        // --- Step B: Minus Total Paid ---
+                        {
+                          $sum: {
+                            $map: {
+                              input: { $ifNull: ["$history", []] },
+                              as: "p",
+                              in: { $toDouble: "$$p.paidAmount" }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    0 // Safety: Result cannot be negative
+                  ]
+                },
+                // 3. IF FILTER FAILS: Count 0
                 0
               ]
             }

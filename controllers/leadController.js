@@ -699,7 +699,7 @@ export const updateSingleLead = async (req, res) => {
             "history", "note", "callCount", "lastContacted", 
             "lastModifiedBy", "enrolledAt", "sourceFileName", 
             "totalPaid", "lastPayment", "totalDue",
-            "paidAmount", "refundAmount" // <--- Added these so they don't appear in leftovers
+            "paidAmount", "refundAmount" , "discountUnit" // <--- Added these so they don't appear in leftovers
         ];
 
         // 2. DETECT CHANGES
@@ -794,10 +794,10 @@ export const updateSingleLead = async (req, res) => {
         // 4. GENERATE THE SINGLE NOTE
         // ======================================================
         if (storyParts.length > 0) {
-            const finalMessage = `${currentUser} ${storyParts.join('. ')}.`;
+            const finalMessage = `${storyParts.join('.\n\n')}.`;
             leadDoc.note.push({
                 text: finalMessage,
-                by: currentUser
+                by: currentUser 
             });
         }
 
