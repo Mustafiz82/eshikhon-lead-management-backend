@@ -257,9 +257,75 @@ export const getAdminLeadStats = async (req, res) => {
             }
           },
 
+          // totalDue: {
+          //   $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Enrolled"] }] }, { $max: [{ $subtract: ["$effectivePrice", "$totalPaid"] }, 0] }, 0] }
+          // },
+
           totalDue: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Enrolled"] }] }, { $max: [{ $subtract: ["$effectivePrice", "$totalPaid"] }, 0] }, 0] }
-          },
+            $sum: {
+              $cond: [
+                // FILTER: Assigned this month AND Enrolled
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                    { $eq: ["$leadStatus", "Enrolled"] }
+                  ]
+                },
+
+                // CALCULATION (SAME AS AGENT VERSION)
+                {
+                  $max: [
+                    {
+                      $subtract: [
+                        // --- Price after Discount ---
+                        {
+                          $subtract: [
+                            { $toDouble: "$originalPrice" },
+                            {
+                              $switch: {
+                                branches: [
+                                  {
+                                    case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
+                                    then: { $toDouble: "$leadDiscount" }
+                                  },
+                                  {
+                                    case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
+                                    then: {
+                                      $multiply: [
+                                        { $toDouble: "$originalPrice" },
+                                        { $divide: [{ $toDouble: "$leadDiscount" }, 100] }
+                                      ]
+                                    }
+                                  }
+                                ],
+                                default: 0
+                              }
+                            }
+                          ]
+                        },
+
+                        // --- Minus total paid from history ---
+                        {
+                          $sum: {
+                            $map: {
+                              input: { $ifNull: ["$history", []] },
+                              as: "p",
+                              in: { $toDouble: "$$p.paidAmount" }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+
+                0
+              ]
+            }
+          }
+,
           unreachableCount: {
             $sum: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }, { $in: ["$leadStatus", ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"]] }] }, 1, 0] }
           },
@@ -447,39 +513,7 @@ export const getAgentleadState = async (req, res) => {
             }
           },
 
-          totalDue: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $gte: ["$assignDate", startOfMonth] },
-                    { $lt: ["$assignDate", endOfMonth] },
-                    { $eq: ["$leadStatus", "Enrolled"] }
-                  ]
-                },
-                {
-                  $max: [
-                    {
-                      $subtract: [
-                        "$effectivePrice",
-                        {
-                          $sum: {
-                            $map: {
-                              input: { $ifNull: ["$history", []] },
-                              as: "p",
-                              in: { $toDouble: "$$p.paidAmount" }
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    0
-                  ]
-                },
-                0
-              ]
-            }
-          },
+
 
           totalDue: {
             $sum: {
