@@ -5,6 +5,7 @@ import { compare } from "bcrypt"
 
 export const createUser = async (req, res) => {
   try {
+    console.log(req.body)
     const user = await User.create(req.body)
     res.status(201).json(user)
   } catch (error) {
@@ -32,7 +33,7 @@ export const getUser = async (req, res) => {
     const result = await User.findById(id)
     return res.status(200).json(result)
   } catch (error) {
-    return res.status(400).json({ error: error.message })
+    return res.status(400).json({ error: error.message }) 
   }
 }
 

@@ -81,7 +81,7 @@ export const getCourceById = async (req, res) => {
     try {
         const { id } = req.params;
         const cource = await course.findById(id);
-        if (!cource) return res.status(404).json({ error: "course not found" });
+        if (!cource) return res.status(404).json({ error: "course not    found" });
         return res.json(cource);
     } catch (err) {
         // invalid ObjectId, etc.

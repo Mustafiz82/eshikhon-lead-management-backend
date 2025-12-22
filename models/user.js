@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
         designation: {
             type: String,
             enum: ["Junior Executive", "Executive", "Senior Executive" , null],
-            default: "Junior Executive",
+          
         },
 
         target: { type: Number, default: 0, min: 0 },
