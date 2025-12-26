@@ -46,7 +46,7 @@ app.use(async (req, res, next) => {
 //     await connectDB(process.env.MONGODB_URI);
 // }
 
-app.listen(3001, () => {
+app.listen(3001, () => {        
     console.log("server running on localhost 3001")
 })
 
