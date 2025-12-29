@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/user.js";
 import Lead from "../models/lead.js";
+import course from "../models/course.js";
 
 export const getLeaderboards = async (req, res) => {
   try {
@@ -429,6 +430,8 @@ export const getAgentleadState = async (req, res) => {
 
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
+
+    console.log(startOfMonth , endOfMonth)
 
     // For Option C (Today's Activity)
     const startOfToday = new Date();
@@ -1045,4 +1048,153 @@ export const getDailyCallCount = async (req, res) => {
   }
 };
 
+
+
+export const getCourseSellingSummary = async (req, res) => {
+  try {
+    const { email, startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: "startDate and endDate are required"
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // 1️⃣ Get unique course names (ignore Online/Offline duplication)
+    const courses = await course.aggregate([
+      { $group: { _id: "$name" } }
+    ]);
+
+    // 2️⃣ Base lead filter
+    const leadQuery = {
+      assignStatus: true,
+      ...(email ? { assignTo: email } : {})
+    };
+
+    const leads = await Lead.find(leadQuery);
+
+    const summary = courses.map(c => {
+      const courseName = c._id;
+
+      const relatedLeads = leads.filter(
+        l => l.interstedCourse === courseName
+      );
+
+      let totalSales = 0;
+      let totalDue = 0;
+
+      let onlineAssigned = 0;
+      let offlineAssigned = 0;
+      let onlineEnrolled = 0;
+      let offlineEnrolled = 0;
+
+      relatedLeads.forEach(lead => {
+        const type = lead.interstedCourseType;
+
+        /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
+        if (
+          lead.assignDate &&
+          lead.assignDate >= start &&
+          lead.assignDate <= end
+        ) {
+          if (type === "Online") onlineAssigned++;
+          if (type === "Offline") offlineAssigned++;
+        }
+
+        /* ---------------- ENROLLED (DATE FILTERED) ---------------- */
+        if (
+          lead.leadStatus === "Enrolled" &&
+          lead.enrolledAt &&
+          lead.enrolledAt >= start &&
+          lead.enrolledAt <= end
+        ) {
+          if (type === "Online") onlineEnrolled++;
+          if (type === "Offline") offlineEnrolled++;
+        }
+
+        /* ---------------- SALES (PAYMENT DATE FILTERED) ---------------- */
+        const paidThisPeriod = (lead.history || []).reduce((sum, h) => {
+          const d = new Date(h.date);
+          if (d >= start && d <= end) {
+            return sum + (h.paidAmount || 0);
+          }
+          return sum;
+        }, 0);
+
+        let refundToSubtract = 0;
+        if (
+          lead.enrolledAt &&
+          lead.enrolledAt >= start &&
+          lead.enrolledAt <= end
+        ) {
+          refundToSubtract = lead.refundAmount || 0;
+        }
+
+        totalSales += paidThisPeriod - refundToSubtract;
+
+        /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
+        const hasPaymentThisPeriod = (lead.history || []).some(h => {
+          const d = new Date(h.date);
+          return d >= start && d <= end;
+        });
+
+        if (lead.leadStatus === "Enrolled" && hasPaymentThisPeriod) {
+          const basePrice = Number(lead.originalPrice || 0);
+
+          let discountAmount = 0;
+          if (String(lead.discountUnit).toLowerCase() === "flat") {
+            discountAmount = Number(lead.leadDiscount || 0);
+          } else if (String(lead.discountUnit).toLowerCase() === "percent") {
+            discountAmount =
+              basePrice * (Number(lead.leadDiscount || 0) / 100);
+          }
+
+          const netPayable = basePrice - discountAmount;
+
+          const totalPaidTillNow = (lead.history || []).reduce(
+            (sum, h) => sum + Number(h.paidAmount || 0),
+            0
+          );
+
+          const due = Math.max(netPayable - totalPaidTillNow, 0);
+          totalDue += due;
+        }
+      });
+
+      return {
+        courseName,
+
+        totalSales,
+        totalDue,
+
+        online: {
+          assigned: onlineAssigned,
+          enrolled: onlineEnrolled
+        },
+
+        offline: {
+          assigned: offlineAssigned,
+          enrolled: offlineEnrolled
+        },
+
+        total: {
+          assigned: onlineAssigned + offlineAssigned,
+          enrolled: onlineEnrolled + offlineEnrolled
+        }
+      };
+    });
+
+    return res.status(200).json(summary);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Failed to generate course selling summary"
+    });
+  }
+};
 

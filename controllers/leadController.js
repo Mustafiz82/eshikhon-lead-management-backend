@@ -184,6 +184,7 @@ export const createLead = async (req, res) => {
     }
 };
 
+
 export const createSingleLead = async (req, res) => {
     console.log(req.body)
     try {
@@ -687,6 +688,8 @@ export const updateSingleLead = async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
+
+        console.log(data)
         const updates = {...data , lastContacted: Date.now() };
 
         const leadDoc = await lead.findById(id);
@@ -699,7 +702,7 @@ export const updateSingleLead = async (req, res) => {
             "_id", "createdAt", "updatedAt", "__v", 
             "history", "note", "callCount", "lastContacted", 
             "lastModifiedBy", "enrolledAt", "sourceFileName", 
-            "totalPaid", "lastPayment", "totalDue",
+            "totalPaid",  "totalDue",
             "paidAmount", "refundAmount" , "discountUnit" // <--- Added these so they don't appear in leftovers
         ];
 
@@ -814,10 +817,10 @@ export const updateSingleLead = async (req, res) => {
             const paymentEntry = { paidAmount: incomingPayment, date: new Date() };
             leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
             leadDoc.history.push(paymentEntry);
-            leadDoc.lastPayment = paymentEntry;
+          
             
-            const totalCost = leadDoc.discountedPrice > 0 ? leadDoc.discountedPrice : leadDoc.originalPrice;
-            if(totalCost > 0) leadDoc.totalDue = totalCost - leadDoc.totalPaid;
+            // const totalCost = leadDoc.discountedPrice > 0 ? leadDoc.discountedPrice : leadDoc.originalPrice;
+            // if(totalCost > 0) leadDoc.totalDue = totalCost - leadDoc.totalPaid;
         }
 
         if (updates.note && updates.note.length > 0) {
