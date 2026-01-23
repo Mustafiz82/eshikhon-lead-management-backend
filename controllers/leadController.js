@@ -823,7 +823,7 @@ export const updateSingleLead = async (req, res) => {
             // if(totalCost > 0) leadDoc.totalDue = totalCost - leadDoc.totalPaid;
         }
 
-        if (updates.note && updates.note.length > 0) {
+        if (updates.note && updates.note.length > 0) {  
             const manualNotes = updates.note.map(n => ({
                 text: typeof n === 'string' ? n : n.text,
                 by: currentUser
