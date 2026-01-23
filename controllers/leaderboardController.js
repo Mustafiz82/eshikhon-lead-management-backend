@@ -200,8 +200,10 @@ export const getAdminLeadStats = async (req, res) => {
           pipeline: [
             { $match: { $expr: { $and: [{ $eq: ["$name", "$$topic"] }, { $eq: ["$type", "$$type"] }] } } },
             { $project: { price: 1, _id: 0 } },
+            { $limit: 1 }
           ],
           as: "courseData",
+          
         },
       },
       { $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true } },
