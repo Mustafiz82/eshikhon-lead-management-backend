@@ -10,6 +10,7 @@ import { createFileName, getAllFileNames } from "./controllers/fileHistoryContro
 import { getLeaderboards } from "./controllers/leaderboardController.js";
 import dashboardRoute from "./routes/dashboard.js";
 import mongoose from "mongoose";
+import paymentRoute from "./routes/paymentRoute.js";
 
 const app = express()
 
@@ -21,6 +22,7 @@ app.use("/api/course", courseRoute)
 app.use("/api/discount", discountRouter)
 app.use("/api/leads", leadRoute)
 app.use("/api/dashboard", dashboardRoute)
+app.use("/api/payments", paymentRoute)
 app.post("/api/file", createFileName)
 app.get("/api/file", getAllFileNames)
 
@@ -46,8 +48,8 @@ app.use(async (req, res, next) => {
 //     await connectDB(process.env.MONGODB_URI);
 // }
 
-app.listen(3001, () => {        
-    console.log("server running on localhost 3001")
+app.listen(4000, () => {        
+    console.log("server running on localhost 4000")
 })
 
 

@@ -57,7 +57,9 @@ export const getLeaderboards = async (req, res) => {
           leadCount: { $sum: 1 },
           basePrice: { $sum: "$effectivePrice" },
           enrolledCount: {
-            $sum: { $cond: [{ $in: ["$leadStatus", ["Enrolled", "Refunded"]] }, 1, 0] },
+            $sum: {
+              $cond: [{ $in: ["$leadStatus", ["Enrolled", "Refunded"]] }, 1, 0],
+            },
           },
           totalPaidFromEnrolled: {
             $sum: {
@@ -104,14 +106,34 @@ export const getLeaderboards = async (req, res) => {
           conversionRate: {
             $cond: [
               { $gt: ["$leadCount", 0] },
-              { $round: [{ $multiply: [{ $divide: ["$enrolledCount", "$leadCount"] }, 100] }, 2] },
+              {
+                $round: [
+                  {
+                    $multiply: [
+                      { $divide: ["$enrolledCount", "$leadCount"] },
+                      100,
+                    ],
+                  },
+                  2,
+                ],
+              },
               0,
             ],
           },
           targetFilled: {
             $cond: [
               { $gt: ["$targetAmount", 0] },
-              { $round: [{ $multiply: [{ $divide: ["$totalPaidFromEnrolled", "$targetAmount"] }, 100] }, 2] },
+              {
+                $round: [
+                  {
+                    $multiply: [
+                      { $divide: ["$totalPaidFromEnrolled", "$targetAmount"] },
+                      100,
+                    ],
+                  },
+                  2,
+                ],
+              },
               0,
             ],
           },
@@ -123,19 +145,19 @@ export const getLeaderboards = async (req, res) => {
         $facet: {
           byAdmitCount: [
             { $sort: { enrolledCount: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } }
+            { $project: { userData: 0, password: 0, refreshToken: 0 } },
           ],
           bySales: [
             { $sort: { totalPaidFromEnrolled: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } }
+            { $project: { userData: 0, password: 0, refreshToken: 0 } },
           ],
           byConversion: [
             { $sort: { conversionRate: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } }
+            { $project: { userData: 0, password: 0, refreshToken: 0 } },
           ],
           byTargetFilled: [
             { $sort: { targetFilled: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } }
+            { $project: { userData: 0, password: 0, refreshToken: 0 } },
           ],
         },
       },
@@ -146,38 +168,38 @@ export const getLeaderboards = async (req, res) => {
     const leaderboards = results[0];
 
     return res.status(200).json(leaderboards);
-
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
 
-
-
 export const getAdminLeadStats = async (req, res) => {
   try {
-    const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
 
-    console.log(startOfMonth, endOfMonth)
-
-
+    console.log(startOfMonth, endOfMonth);
 
     // const startOfMonth = new Date(year, month - 1, 1);
     // const endOfMonth = new Date(year, month, 1);
 
     // --- PART A: INFLUX (Created Date) ---
-    const createdFilter = { createdAt: { $gte: startOfMonth, $lt: endOfMonth } };
-    const AssignedDateFilter = { assignDate: { $gte: startOfMonth, $lt: endOfMonth } };
+    const createdFilter = {
+      createdAt: { $gte: startOfMonth, $lt: endOfMonth },
+    };
+    const AssignedDateFilter = {
+      assignDate: { $gte: startOfMonth, $lt: endOfMonth },
+    };
 
-    const [totalLeads, totalAssignedCreated, totalUnassignedCreated] = await Promise.all([
-      Lead.countDocuments(createdFilter),
-      Lead.countDocuments({ ...AssignedDateFilter, assignStatus: true }),
-      Lead.countDocuments({ ...createdFilter, assignStatus: false })
-    ]);
+    const [totalLeads, totalAssignedCreated, totalUnassignedCreated] =
+      await Promise.all([
+        Lead.countDocuments(createdFilter),
+        Lead.countDocuments({ ...AssignedDateFilter, assignStatus: true }),
+        Lead.countDocuments({ ...createdFilter, assignStatus: false }),
+      ]);
 
     // --- PART B: PERFORMANCE (Complex Logic) ---
     const superMatch = {
@@ -186,8 +208,8 @@ export const getAdminLeadStats = async (req, res) => {
         { lastContacted: { $gte: startOfMonth, $lt: endOfMonth } },
         { followUpDate: { $gte: startOfMonth, $lt: endOfMonth } },
         { enrolledAt: { $gte: startOfMonth, $lt: endOfMonth } },
-        { "history.date": { $gte: startOfMonth, $lt: endOfMonth } }
-      ]
+        { "history.date": { $gte: startOfMonth, $lt: endOfMonth } },
+      ],
     };
 
     const performanceStats = await Lead.aggregate([
@@ -198,12 +220,20 @@ export const getAdminLeadStats = async (req, res) => {
           from: "courses",
           let: { topic: "$interstedCourse", type: "$interstedCourseType" },
           pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$name", "$$topic"] }, { $eq: ["$type", "$$type"] }] } } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$name", "$$topic"] },
+                    { $eq: ["$type", "$$type"] },
+                  ],
+                },
+              },
+            },
             { $project: { price: 1, _id: 0 } },
-            { $limit: 1 }
+            { $limit: 1 },
           ],
           as: "courseData",
-          
         },
       },
       { $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true } },
@@ -216,32 +246,102 @@ export const getAdminLeadStats = async (req, res) => {
 
           // ... (Existing metrics: pending, basePrice, etc.) ...
           pendingCount: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }, { $eq: ["$leadStatus", "Pending"] }] }, 1, 0] }
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                    { $eq: ["$leadStatus", "Pending"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           basePrice: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] }, "$effectivePrice", 0] }
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                  ],
+                },
+                "$effectivePrice",
+                0,
+              ],
+            },
           },
           totalSales: {
             $sum: {
               $subtract: [
                 {
                   $reduce: {
-                    input: { $filter: { input: { $ifNull: ["$history", []] }, as: "p", cond: { $and: [{ $gte: ["$$p.date", startOfMonth] }, { $lt: ["$$p.date", endOfMonth] }] } } },
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$history", []] },
+                        as: "p",
+                        cond: {
+                          $and: [
+                            { $gte: ["$$p.date", startOfMonth] },
+                            { $lt: ["$$p.date", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
                     initialValue: 0,
-                    in: { $sum: ["$$value", { $toDouble: "$$this.paidAmount" }] }
-                  }
+                    in: {
+                      $sum: ["$$value", { $toDouble: "$$this.paidAmount" }],
+                    },
+                  },
                 },
-                { $cond: [{ $and: [{ $gte: ["$enrolledAt", startOfMonth] }, { $lt: ["$enrolledAt", endOfMonth] }] }, { $ifNull: ["$refundAmount", 0] }, 0] }
-              ]
-            }
+                {
+                  $cond: [
+                    {
+                      $and: [
+                        { $gte: ["$enrolledAt", startOfMonth] },
+                        { $lt: ["$enrolledAt", endOfMonth] },
+                      ],
+                    },
+                    { $ifNull: ["$refundAmount", 0] },
+                    0,
+                  ],
+                },
+              ],
+            },
           },
           enrolledCount: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$enrolledAt", startOfMonth] }, { $lt: ["$enrolledAt", endOfMonth] }, { $in: ["$leadStatus", ["Enrolled", "Refunded"]] }] }, 1, 0] }
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$enrolledAt", startOfMonth] },
+                    { $lt: ["$enrolledAt", endOfMonth] },
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
 
           // --- REFUND AMOUNT ---
           totalRefunds: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$enrolledAt", startOfMonth] }, { $lt: ["$enrolledAt", endOfMonth] }] }, { $ifNull: ["$refundAmount", 0] }, 0] }
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$enrolledAt", startOfMonth] },
+                    { $lt: ["$enrolledAt", endOfMonth] },
+                  ],
+                },
+                { $ifNull: ["$refundAmount", 0] },
+                0,
+              ],
+            },
           },
 
           // --- NEW: REFUND COUNT ---
@@ -252,12 +352,13 @@ export const getAdminLeadStats = async (req, res) => {
                   $and: [
                     { $gte: ["$enrolledAt", startOfMonth] },
                     { $lt: ["$enrolledAt", endOfMonth] },
-                    { $gt: ["$refundAmount", 0] } // Check if refund amount > 0
-                  ]
+                    { $gt: ["$refundAmount", 0] }, // Check if refund amount > 0
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // totalDue: {
@@ -272,8 +373,8 @@ export const getAdminLeadStats = async (req, res) => {
                   $and: [
                     { $gte: ["$assignDate", startOfMonth] },
                     { $lt: ["$assignDate", endOfMonth] },
-                    { $eq: ["$leadStatus", "Enrolled"] }
-                  ]
+                    { $eq: ["$leadStatus", "Enrolled"] },
+                  ],
                 },
 
                 // CALCULATION (SAME AS AGENT VERSION)
@@ -289,23 +390,38 @@ export const getAdminLeadStats = async (req, res) => {
                               $switch: {
                                 branches: [
                                   {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
-                                    then: { $toDouble: "$leadDiscount" }
+                                    case: {
+                                      $eq: [
+                                        { $toLower: "$discountUnit" },
+                                        "flat",
+                                      ],
+                                    },
+                                    then: { $toDouble: "$leadDiscount" },
                                   },
                                   {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
+                                    case: {
+                                      $eq: [
+                                        { $toLower: "$discountUnit" },
+                                        "percent",
+                                      ],
+                                    },
                                     then: {
                                       $multiply: [
                                         { $toDouble: "$originalPrice" },
-                                        { $divide: [{ $toDouble: "$leadDiscount" }, 100] }
-                                      ]
-                                    }
-                                  }
+                                        {
+                                          $divide: [
+                                            { $toDouble: "$leadDiscount" },
+                                            100,
+                                          ],
+                                        },
+                                      ],
+                                    },
+                                  },
                                 ],
-                                default: 0
-                              }
-                            }
-                          ]
+                                default: 0,
+                              },
+                            },
+                          ],
                         },
 
                         // --- Minus total paid from history ---
@@ -314,59 +430,154 @@ export const getAdminLeadStats = async (req, res) => {
                             $map: {
                               input: { $ifNull: ["$history", []] },
                               as: "p",
-                              in: { $toDouble: "$$p.paidAmount" }
-                            }
-                          }
-                        }
-                      ]
+                              in: { $toDouble: "$$p.paidAmount" },
+                            },
+                          },
+                        },
+                      ],
                     },
-                    0
-                  ]
+                    0,
+                  ],
                 },
 
-                0
-              ]
-            }
-          }
-          ,
+                0,
+              ],
+            },
+          },
           unreachableCount: {
-            $sum: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }, { $in: ["$leadStatus", ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"]] }] }, 1, 0] }
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$lastContacted", startOfMonth] },
+                    { $lt: ["$lastContacted", endOfMonth] },
+                    {
+                      $in: [
+                        "$leadStatus",
+                        [
+                          "call declined",
+                          "Call Not Received",
+                          "Number Off or Busy",
+                          "Wrong Number",
+                        ],
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           joinedOnSeminarCount: {
-            $sum: { $switch: { branches: [{ case: { $eq: [{ $toLower: { $ifNull: ["$leadSource", ""] } }, "seminar"] }, then: { $cond: [{ $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] }, 1, 0] } }, { case: { $eq: ["$interstedSeminar", "Joined"] }, then: { $cond: [{ $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }] }, 1, 0] } }], default: 0 } }
-          }
-        }
+            $sum: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $eq: [
+                        { $toLower: { $ifNull: ["$leadSource", ""] } },
+                        "seminar",
+                      ],
+                    },
+                    then: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$assignDate", startOfMonth] },
+                            { $lt: ["$assignDate", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  {
+                    case: { $eq: ["$interstedSeminar", "Joined"] },
+                    then: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$lastContacted", startOfMonth] },
+                            { $lt: ["$lastContacted", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                ],
+                default: 0,
+              },
+            },
+          },
+        },
       },
 
       // ... (Lookup User & Calculations) ...
       {
-        $lookup: { from: "users", localField: "_id", foreignField: "email", as: "userData" }
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "email",
+          as: "userData",
+        },
       },
       { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
-          individualTargetAmount: { $multiply: ["$basePrice", { $divide: [{ $ifNull: ["$userData.target", 0] }, 100] }] }
-        }
+          individualTargetAmount: {
+            $multiply: [
+              "$basePrice",
+              { $divide: [{ $ifNull: ["$userData.target", 0] }, 100] },
+            ],
+          },
+        },
       },
       {
         $addFields: {
-          completionRate: { $cond: [{ $gt: ["$individualTargetAmount", 0] }, { $multiply: [{ $divide: ["$totalSales", "$individualTargetAmount"] }, 100] }, 0] }
-        }
+          completionRate: {
+            $cond: [
+              { $gt: ["$individualTargetAmount", 0] },
+              {
+                $multiply: [
+                  { $divide: ["$totalSales", "$individualTargetAmount"] },
+                  100,
+                ],
+              },
+              0,
+            ],
+          },
+        },
       },
       {
         $addFields: {
           individualCommission: {
             $switch: {
               branches: [
-                { case: { $gt: ["$completionRate", 100] }, then: { $multiply: ["$totalSales", 0.04] } },
-                { case: { $gte: ["$completionRate", 81] }, then: { $multiply: ["$totalSales", 0.03] } },
-                { case: { $gte: ["$completionRate", 61] }, then: { $multiply: ["$totalSales", 0.02] } },
-                { case: { $gte: ["$completionRate", 40] }, then: { $multiply: ["$totalSales", 0.01] } }
+                {
+                  case: { $gt: ["$completionRate", 100] },
+                  then: { $multiply: ["$totalSales", 0.04] },
+                },
+                {
+                  case: { $gte: ["$completionRate", 81] },
+                  then: { $multiply: ["$totalSales", 0.03] },
+                },
+                {
+                  case: { $gte: ["$completionRate", 61] },
+                  then: { $multiply: ["$totalSales", 0.02] },
+                },
+                {
+                  case: { $gte: ["$completionRate", 40] },
+                  then: { $multiply: ["$totalSales", 0.01] },
+                },
               ],
-              default: 0
-            }
-          }
-        }
+              default: 0,
+            },
+          },
+        },
       },
 
       // Stage: GLOBAL GROUPING
@@ -382,9 +593,9 @@ export const getAdminLeadStats = async (req, res) => {
           totalUnreachable: { $sum: "$unreachableCount" },
           totalJoinedOnSeminar: { $sum: "$joinedOnSeminarCount" },
           grandTotalTargetAmount: { $sum: "$individualTargetAmount" },
-          grandTotalCommission: { $sum: "$individualCommission" }
-        }
-      }
+          grandTotalCommission: { $sum: "$individualCommission" },
+        },
+      },
     ]);
 
     const complexStats = performanceStats[0] || {};
@@ -407,14 +618,12 @@ export const getAdminLeadStats = async (req, res) => {
       totalRefunds: complexStats.totalRefunds || 0,
       refundedCount: complexStats.totalRefundCount || 0, // <--- Return Count
 
-      totalUnreachable: complexStats.totalUnreachable || 0
+      totalUnreachable: complexStats.totalUnreachable || 0,
     });
-
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
-
 
 export const getAgentleadState = async (req, res) => {
   try {
@@ -433,7 +642,7 @@ export const getAgentleadState = async (req, res) => {
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
 
-    console.log(startOfMonth , endOfMonth)
+    console.log(startOfMonth, endOfMonth);
 
     // For Option C (Today's Activity)
     const startOfToday = new Date();
@@ -456,8 +665,8 @@ export const getAgentleadState = async (req, res) => {
         // Option E: Enrolled (First Payment/Enrollment Date) this month
         { enrolledAt: { $gte: startOfMonth, $lt: endOfMonth } },
         // Option F: Any payment inside history array this month
-        { "history.date": { $gte: startOfMonth, $lt: endOfMonth } }
-      ]
+        { "history.date": { $gte: startOfMonth, $lt: endOfMonth } },
+      ],
     };
 
     // Apply User Filter
@@ -465,13 +674,23 @@ export const getAgentleadState = async (req, res) => {
 
     // --- 3. Status Arrays ---
     const connectedStatuses = [
-      "Enrolled", "Will Join on Seminar", "Joined on seminar",
-      "Not Interested", "Enrolled in Other Institute",
-      "Call declined", "Call later", "Will Register", "Already Enrolled", "On hold"
+      "Enrolled",
+      "Will Join on Seminar",
+      "Joined on seminar",
+      "Not Interested",
+      "Enrolled in Other Institute",
+      "Call declined",
+      "Call later",
+      "Will Register",
+      "Already Enrolled",
+      "On hold",
     ];
 
     const unreachableStatuses = [
-      "call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"
+      "call declined",
+      "Call Not Received",
+      "Number Off or Busy",
+      "Wrong Number",
     ];
 
     const usersWithStats = await Lead.aggregate([
@@ -484,9 +703,18 @@ export const getAgentleadState = async (req, res) => {
           from: "courses",
           let: { topic: "$interstedCourse", type: "$interstedCourseType" },
           pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$name", "$$topic"] }, { $eq: ["$type", "$$type"] }] } } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$name", "$$topic"] },
+                    { $eq: ["$type", "$$type"] },
+                  ],
+                },
+              },
+            },
             { $project: { price: 1, _id: 0 } },
-            { $limit: 1 }
+            { $limit: 1 },
           ],
           as: "courseData",
         },
@@ -504,21 +732,31 @@ export const getAgentleadState = async (req, res) => {
           leadCount: {
             $sum: {
               $cond: [
-                { $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] },
-                1, 0
-              ]
-            }
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           basePrice: {
             $sum: {
               $cond: [
-                { $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] },
-                "$effectivePrice", 0
-              ]
-            }
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                  ],
+                },
+                "$effectivePrice",
+                0,
+              ],
+            },
           },
-
-
 
           // totalDue: {
           //   $sum: {
@@ -586,7 +824,6 @@ export const getAgentleadState = async (req, res) => {
           //   }
           // },
 
-
           totalDue: {
             $sum: {
               $cond: [
@@ -604,23 +841,38 @@ export const getAgentleadState = async (req, res) => {
                               $switch: {
                                 branches: [
                                   {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
-                                    then: { $toDouble: "$leadDiscount" }
+                                    case: {
+                                      $eq: [
+                                        { $toLower: "$discountUnit" },
+                                        "flat",
+                                      ],
+                                    },
+                                    then: { $toDouble: "$leadDiscount" },
                                   },
                                   {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
+                                    case: {
+                                      $eq: [
+                                        { $toLower: "$discountUnit" },
+                                        "percent",
+                                      ],
+                                    },
                                     then: {
                                       $multiply: [
                                         { $toDouble: "$originalPrice" },
-                                        { $divide: [{ $toDouble: "$leadDiscount" }, 100] }
-                                      ]
-                                    }
-                                  }
+                                        {
+                                          $divide: [
+                                            { $toDouble: "$leadDiscount" },
+                                            100,
+                                          ],
+                                        },
+                                      ],
+                                    },
+                                  },
                                 ],
-                                default: 0
-                              }
-                            }
-                          ]
+                                default: 0,
+                              },
+                            },
+                          ],
                         },
 
                         // ---- ALL PAYMENTS UP TO NOW ----
@@ -630,27 +882,28 @@ export const getAgentleadState = async (req, res) => {
                               $filter: {
                                 input: { $ifNull: ["$history", []] },
                                 as: "p",
-                                cond: { $lte: ["$$p.date", new Date()] }
-                              }
+                                cond: { $lte: ["$$p.date", new Date()] },
+                              },
                             },
                             initialValue: 0,
                             in: {
-                              $add: ["$$value", { $toDouble: "$$this.paidAmount" }]
-                            }
-                          }
-                        }
-                      ]
+                              $add: [
+                                "$$value",
+                                { $toDouble: "$$this.paidAmount" },
+                              ],
+                            },
+                          },
+                        },
+                      ],
                     },
-                    0
-                  ]
+                    0,
+                  ],
                 },
 
-                0
-              ]
-            }
-          }
-          ,
-
+                0,
+              ],
+            },
+          },
           pendingCount: {
             $sum: {
               $cond: [
@@ -658,12 +911,13 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$assignDate", startOfMonth] },
                     { $lt: ["$assignDate", endOfMonth] },
-                    { $eq: ["$leadStatus", "Pending"] }
-                  ]
+                    { $eq: ["$leadStatus", "Pending"] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // --- OPTION B: Last Contacted Based ---
@@ -675,14 +929,14 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$lastContacted", startOfMonth] },
                     { $lt: ["$lastContacted", endOfMonth] },
-                    { $in: ["$leadStatus", unreachableStatuses] }
-                  ]
+                    { $in: ["$leadStatus", unreachableStatuses] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
-
 
           totalConnectedCall: {
             $sum: {
@@ -691,12 +945,13 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$lastContacted", startOfMonth] },
                     { $lt: ["$lastContacted", endOfMonth] },
-                    { $in: ["$leadStatus", connectedStatuses] }
-                  ]
+                    { $in: ["$leadStatus", connectedStatuses] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // --- OPTION C: Present Day (Today) Based ---
@@ -708,12 +963,13 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$lastContacted", startOfToday] },
                     { $lt: ["$lastContacted", endOfToday] },
-                    { $in: ["$leadStatus", connectedStatuses] }
-                  ]
+                    { $in: ["$leadStatus", connectedStatuses] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // --- OPTION D: Follow Up Date Based ---
@@ -724,12 +980,13 @@ export const getAgentleadState = async (req, res) => {
                 {
                   $and: [
                     { $gte: ["$followUpDate", startOfMonth] },
-                    { $lt: ["$followUpDate", endOfMonth] }
-                  ]
+                    { $lt: ["$followUpDate", endOfMonth] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // --- OPTION E: Enrolled Date Based ---
@@ -741,13 +998,13 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$enrolledAt", startOfMonth] },
                     { $lt: ["$enrolledAt", endOfMonth] },
-                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] }
-
-                  ]
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                  ],
                 },
-                1, 0
-              ]
-            }
+                1,
+                0,
+              ],
+            },
           },
 
           // --- OPTION F: Sales Sum Based ---
@@ -756,7 +1013,7 @@ export const getAgentleadState = async (req, res) => {
           totalSales: {
             $sum: {
               $subtract: [
-                // 1. POSITIVE: Sum of payments made in the selected month
+                // 1) POSITIVE: Sum of payments made in the selected month
                 {
                   $reduce: {
                     input: {
@@ -764,36 +1021,67 @@ export const getAgentleadState = async (req, res) => {
                         input: { $ifNull: ["$history", []] },
                         as: "p",
                         cond: {
-                          $and: [
-                            { $gte: ["$$p.date", startOfMonth] },
-                            { $lt: ["$$p.date", endOfMonth] }
-                          ]
-                        }
-                      }
+                          $let: {
+                            vars: {
+                              pDate: {
+                                $convert: {
+                                  input: "$$p.date",
+                                  to: "date",
+                                  onError: null,
+                                  onNull: null,
+                                },
+                              },
+                            },
+                            in: {
+                              $and: [
+                                { $ne: ["$$pDate", null] },
+                                { $gte: ["$$pDate", startOfMonth] },
+                                { $lt: ["$$pDate", endOfMonth] },
+                              ],
+                            },
+                          },
+                        },
+                      },
                     },
                     initialValue: 0,
-                    in: { $sum: ["$$value", { $toDouble: "$$this.paidAmount" }] }
-                  }
+                    in: {
+                      $add: [
+                        "$$value",
+                        {
+                          $convert: {
+                            input: "$$this.paidAmount",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                      ],
+                    },
+                  },
                 },
 
-                // 2. NEGATIVE: Subtract refundAmount ONLY if selected month == Enrollment Month
+                // 2) NEGATIVE: Subtract refundAmount ONLY if selected month == Enrollment Month
                 {
                   $cond: [
                     {
                       $and: [
-                        // Check if enrolledAt falls within the filtered Month/Year
                         { $gte: ["$enrolledAt", startOfMonth] },
-                        { $lt: ["$enrolledAt", endOfMonth] }
-                      ]
+                        { $lt: ["$enrolledAt", endOfMonth] },
+                      ],
                     },
-                    // If YES (This is the enrollment month), subtract the refund amount
-                    { $ifNull: ["$refundAmount", 0] },
-                    // If NO (This is a later month, e.g., November), subtract 0
-                    0
-                  ]
-                }
-              ]
-            }
+                    {
+                      $convert: {
+                        input: { $ifNull: ["$refundAmount", 0] },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                    0,
+                  ],
+                },
+              ],
+            },
           },
 
           totalRefunds: {
@@ -803,15 +1091,15 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     // 1. Check if Enrollment Date matches the selected Month
                     { $gte: ["$enrolledAt", startOfMonth] },
-                    { $lt: ["$enrolledAt", endOfMonth] }
-                  ]
+                    { $lt: ["$enrolledAt", endOfMonth] },
+                  ],
                 },
                 // 2. If YES, add the refundAmount
                 { $ifNull: ["$refundAmount", 0] },
                 // 3. If NO (different month), add 0
-                0
-              ]
-            }
+                0,
+              ],
+            },
           },
 
           // Optional: If you also want to count HOW MANY students got refunded
@@ -822,15 +1110,14 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$enrolledAt", startOfMonth] },
                     { $lt: ["$enrolledAt", endOfMonth] },
-                    { $gt: ["$refundAmount", 0] } // Check if refund amount is greater than 0
-                  ]
+                    { $gt: ["$refundAmount", 0] }, // Check if refund amount is greater than 0
+                  ],
                 },
                 1,
-                0
-              ]
-            }
+                0,
+              ],
+            },
           },
-
 
           // --- SPECIAL LOGIC: Joined On Seminar ---
           joinedOnSeminarCount: {
@@ -839,31 +1126,47 @@ export const getAgentleadState = async (req, res) => {
                 branches: [
                   // Condition 1: Lead Source is "seminar" -> Use Option A (AssignDate)
                   {
-                    case: { $eq: [{ $toLower: { $ifNull: ["$leadSource", ""] } }, "seminar"] },
+                    case: {
+                      $eq: [
+                        { $toLower: { $ifNull: ["$leadSource", ""] } },
+                        "seminar",
+                      ],
+                    },
                     then: {
                       $cond: [
-                        { $and: [{ $gte: ["$assignDate", startOfMonth] }, { $lt: ["$assignDate", endOfMonth] }] },
-                        1, 0
-                      ]
-                    }
+                        {
+                          $and: [
+                            { $gte: ["$assignDate", startOfMonth] },
+                            { $lt: ["$assignDate", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
                   },
                   // Condition 2: interstedSeminar is "Joined" -> Use Option B (lastContacted)
                   {
                     case: { $eq: ["$interstedSeminar", "Joined"] },
                     then: {
                       $cond: [
-                        { $and: [{ $gte: ["$lastContacted", startOfMonth] }, { $lt: ["$lastContacted", endOfMonth] }] },
-                        1, 0
-                      ]
-                    }
-                  }
+                        {
+                          $and: [
+                            { $gte: ["$lastContacted", startOfMonth] },
+                            { $lt: ["$lastContacted", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
                 ],
-                default: 0 // If neither matches, count 0
-              }
-            }
-          }
-
-        }
+                default: 0, // If neither matches, count 0
+              },
+            },
+          },
+        },
       },
 
       // Stage 4: Join User Data
@@ -875,7 +1178,7 @@ export const getAgentleadState = async (req, res) => {
           as: "userData",
         },
       },
-      { $match: { "userData": { $ne: [] } } },
+      { $match: { userData: { $ne: [] } } },
       { $unwind: "$userData" },
 
       // Stage 5: Merge
@@ -902,7 +1205,12 @@ export const getAgentleadState = async (req, res) => {
               { $gt: ["$targetAmount", 0] },
               {
                 $round: [
-                  { $multiply: [{ $divide: ["$totalSales", "$targetAmount"] }, 100] },
+                  {
+                    $multiply: [
+                      { $divide: ["$totalSales", "$targetAmount"] },
+                      100,
+                    ],
+                  },
                   0,
                 ],
               },
@@ -916,10 +1224,37 @@ export const getAgentleadState = async (req, res) => {
           commission: {
             $switch: {
               branches: [
-                { case: { $and: [{ $gte: ["$targetCompletionRate", 40] }, { $lte: ["$targetCompletionRate", 60] }] }, then: { $multiply: ["$totalSales", 0.01] } },
-                { case: { $and: [{ $gte: ["$targetCompletionRate", 61] }, { $lte: ["$targetCompletionRate", 80] }] }, then: { $multiply: ["$totalSales", 0.02] } },
-                { case: { $and: [{ $gte: ["$targetCompletionRate", 81] }, { $lte: ["$targetCompletionRate", 100] }] }, then: { $multiply: ["$totalSales", 0.03] } },
-                { case: { $gt: ["$targetCompletionRate", 100] }, then: { $multiply: ["$totalSales", 0.04] } }
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 40] },
+                      { $lte: ["$targetCompletionRate", 60] },
+                    ],
+                  },
+                  then: { $multiply: ["$totalSales", 0.01] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 61] },
+                      { $lte: ["$targetCompletionRate", 80] },
+                    ],
+                  },
+                  then: { $multiply: ["$totalSales", 0.02] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 81] },
+                      { $lte: ["$targetCompletionRate", 100] },
+                    ],
+                  },
+                  then: { $multiply: ["$totalSales", 0.03] },
+                },
+                {
+                  case: { $gt: ["$targetCompletionRate", 100] },
+                  then: { $multiply: ["$totalSales", 0.04] },
+                },
               ],
               default: 0,
             },
@@ -941,7 +1276,9 @@ export const getAgentleadState = async (req, res) => {
       if (usersWithStats.length > 0) {
         return res.status(200).json(usersWithStats[0]);
       } else {
-        const user = await User.findOne({ $or: [{ email }, { _id: id }] }).select('-password -refreshToken');
+        const user = await User.findOne({
+          $or: [{ email }, { _id: id }],
+        }).select("-password -refreshToken");
         return res.status(200).json(user || null);
       }
     }
@@ -952,8 +1289,6 @@ export const getAgentleadState = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
-
-
 
 export const getLeadsGrowth = async (req, res) => {
   try {
@@ -971,7 +1306,7 @@ export const getLeadsGrowth = async (req, res) => {
             leadStatus: "Enrolled",
           }),
         ]);
-      })
+      }),
     );
 
     const totalLeads = monthlyStats.map(([t]) => t);
@@ -983,11 +1318,9 @@ export const getLeadsGrowth = async (req, res) => {
   }
 };
 
-
-
 export const getDailyCallCount = async (req, res) => {
   try {
-    const month = parseInt(req.query.month) || (new Date().getMonth() + 1); // 1-12
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1; // 1-12
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
     const startOfMonth = new Date(year, month - 1, 1);
@@ -996,49 +1329,61 @@ export const getDailyCallCount = async (req, res) => {
     // ✅ Only fetch users that are not admin
     const activeUsers = await User.find(
       { role: { $ne: "admin" } },
-      { email: 1, name: 1 }
+      { email: 1, name: 1 },
     );
 
-    console.log(activeUsers.map(u => u.email))
+    console.log(activeUsers.map((u) => u.email));
 
     const stats = await Lead.aggregate([
       {
         $match: {
-          assignTo: { $in: activeUsers.map(u => u.email) },
+          assignTo: { $in: activeUsers.map((u) => u.email) },
           lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
           leadStatus: {
             $in: [
-              "Enrolled", "Will Join on Seminar", "Joined on seminar",
-              "Not Interested", "Enrolled in Other Institute",
-              "Call declined", "Call later", "Will Register", "Already Enrolled", "On hold"
-            ]
-          }
-        }
+              "Enrolled",
+              "Will Join on Seminar",
+              "Joined on seminar",
+              "Not Interested",
+              "Enrolled in Other Institute",
+              "Call declined",
+              "Call later",
+              "Will Register",
+              "Already Enrolled",
+              "On hold",
+            ],
+          },
+        },
       },
       {
         $group: {
           _id: {
             agent: "$assignTo",
-            day: { $dayOfMonth: "$lastContacted" }
+            day: { $dayOfMonth: "$lastContacted" },
           },
-          callCount: { $sum: 1 }
-        }
+          callCount: { $sum: 1 },
+        },
       },
-      { $sort: { "_id.agent": 1, "_id.day": 1 } }
+      { $sort: { "_id.agent": 1, "_id.day": 1 } },
     ]);
 
-    console.log(stats)
+    console.log(stats);
 
     const daysInMonth = new Date(year, month, 0).getDate();
-    const result = activeUsers.map(user => ({
+    const result = activeUsers.map((user) => ({
       name: user.name || user.email,
       calls: Array(daysInMonth).fill(0),
     }));
 
-    console.log(result)
+    console.log(result);
 
-    stats.forEach(s => {
-      const idx = result.findIndex(r => r.name === (activeUsers.find(u => u.email === s._id.agent)?.name || s._id.agent));
+    stats.forEach((s) => {
+      const idx = result.findIndex(
+        (r) =>
+          r.name ===
+          (activeUsers.find((u) => u.email === s._id.agent)?.name ||
+            s._id.agent),
+      );
       if (idx !== -1) {
         result[idx].calls[s._id.day - 1] = s.callCount;
       }
@@ -1050,15 +1395,13 @@ export const getDailyCallCount = async (req, res) => {
   }
 };
 
-
-
 export const getCourseSellingSummary = async (req, res) => {
   try {
     const { email, startDate, endDate } = req.query;
 
     if (!startDate || !endDate) {
       return res.status(400).json({
-        error: "startDate and endDate are required"
+        error: "startDate and endDate are required",
       });
     }
 
@@ -1067,23 +1410,21 @@ export const getCourseSellingSummary = async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     // 1️⃣ Get unique course names (ignore Online/Offline duplication)
-    const courses = await course.aggregate([
-      { $group: { _id: "$name" } }
-    ]);
+    const courses = await course.aggregate([{ $group: { _id: "$name" } }]);
 
     // 2️⃣ Base lead filter
     const leadQuery = {
       assignStatus: true,
-      ...(email ? { assignTo: email } : {})
+      ...(email ? { assignTo: email } : {}),
     };
 
     const leads = await Lead.find(leadQuery);
 
-    const summary = courses.map(c => {
+    const summary = courses.map((c) => {
       const courseName = c._id;
 
       const relatedLeads = leads.filter(
-        l => l.interstedCourse === courseName
+        (l) => l.interstedCourse === courseName,
       );
 
       let totalSales = 0;
@@ -1094,7 +1435,7 @@ export const getCourseSellingSummary = async (req, res) => {
       let onlineEnrolled = 0;
       let offlineEnrolled = 0;
 
-      relatedLeads.forEach(lead => {
+      relatedLeads.forEach((lead) => {
         const type = lead.interstedCourseType;
 
         /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
@@ -1139,7 +1480,7 @@ export const getCourseSellingSummary = async (req, res) => {
         totalSales += paidThisPeriod - refundToSubtract;
 
         /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
-        const hasPaymentThisPeriod = (lead.history || []).some(h => {
+        const hasPaymentThisPeriod = (lead.history || []).some((h) => {
           const d = new Date(h.date);
           return d >= start && d <= end;
         });
@@ -1151,15 +1492,14 @@ export const getCourseSellingSummary = async (req, res) => {
           if (String(lead.discountUnit).toLowerCase() === "flat") {
             discountAmount = Number(lead.leadDiscount || 0);
           } else if (String(lead.discountUnit).toLowerCase() === "percent") {
-            discountAmount =
-              basePrice * (Number(lead.leadDiscount || 0) / 100);
+            discountAmount = basePrice * (Number(lead.leadDiscount || 0) / 100);
           }
 
           const netPayable = basePrice - discountAmount;
 
           const totalPaidTillNow = (lead.history || []).reduce(
             (sum, h) => sum + Number(h.paidAmount || 0),
-            0
+            0,
           );
 
           const due = Math.max(netPayable - totalPaidTillNow, 0);
@@ -1175,28 +1515,26 @@ export const getCourseSellingSummary = async (req, res) => {
 
         online: {
           assigned: onlineAssigned,
-          enrolled: onlineEnrolled
+          enrolled: onlineEnrolled,
         },
 
         offline: {
           assigned: offlineAssigned,
-          enrolled: offlineEnrolled
+          enrolled: offlineEnrolled,
         },
 
         total: {
           assigned: onlineAssigned + offlineAssigned,
-          enrolled: onlineEnrolled + offlineEnrolled
-        }
+          enrolled: onlineEnrolled + offlineEnrolled,
+        },
       };
     });
 
     return res.status(200).json(summary);
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      message: "Failed to generate course selling summary"
+      message: "Failed to generate course selling summary",
     });
   }
 };
-
