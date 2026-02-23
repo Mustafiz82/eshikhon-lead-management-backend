@@ -1,0 +1,27 @@
+"filename", "language", "JSON", "JavaScript", "comment", "blank", "total"
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\config\db.js", "JavaScript", 0, 19, 0, 5, 24
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\courseController.js", "JavaScript", 0, 96, 14, 18, 128
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\discountController.js", "JavaScript", 0, 65, 30, 17, 112
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\fileHistoryController.js", "JavaScript", 0, 17, 0, 5, 22
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\leadController.js", "JavaScript", 0, 816, 92, 156, 1064
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\leaderboardController.js", "JavaScript", 0, 1272, 154, 115, 1541
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\paymentsController.js", "JavaScript", 0, 735, 31, 70, 836
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\controllers\userController.js", "JavaScript", 0, 73, 2, 25, 100
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\index.js", "JavaScript", 0, 40, 3, 13, 56
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\commissionPayment.js", "JavaScript", 0, 18, 0, 8, 26
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\commissionSnapshot.js", "JavaScript", 0, 19, 5, 9, 33
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\course.js", "JavaScript", 0, 13, 0, 2, 15
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\discounts.js", "JavaScript", 0, 71, 6, 19, 96
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\fileHistory.js", "JavaScript", 0, 7, 0, 3, 10
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\lead.js", "JavaScript", 0, 99, 0, 23, 122
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\models\user.js", "JavaScript", 0, 38, 2, 16, 56
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\package-lock.json", "JSON", 1102, 0, 0, 1, 1103
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\package.json", "JSON", 20, 0, 0, 1, 21
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\courseRoute.js", "JavaScript", 0, 8, 0, 4, 12
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\dashboard.js", "JavaScript", 0, 10, 0, 8, 18
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\discountRoute.js", "JavaScript", 0, 8, 1, 5, 14
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\leadRoute.js", "JavaScript", 0, 13, 0, 4, 17
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\paymentRoute.js", "JavaScript", 0, 9, 0, 7, 16
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\routes\userRoute.js", "JavaScript", 0, 10, 0, 6, 16
+"c:\Users\Mustafiz Rahman\Desktop\eshikhon-lead\lead-backend\vercel.json", "JSON", 9, 0, 0, 1, 10
+"Total", "-", 1131, 3456, 340, 541, 5468
