@@ -15,21 +15,30 @@ const commissionPaymentSchema = new mongoose.Schema(
     payer: {
       name: { type: String, default: "" },
       number: { type: String, default: "" },
-      accountType: { type: String, default: "" }
+      accountType: { type: String, default: "" },
     },
 
     payee: {
       name: { type: String, default: "" },
       number: { type: String, default: "" },
-      accountDetails: { type: String, default: "" }
+      accountDetails: { type: String, default: "" },
     },
 
     paidBy: { type: String, default: "admin" },
     paidAt: { type: Date, default: Date.now },
 
-    status: { type: String, enum: ["completed", "voided"], default: "completed" },
+    status: {
+      type: String,
+      enum: ["completed", "voided"],
+      default: "completed",
+    },
+    paymentInfoSnapshot: {
+      name: { type: String, default: "" },
+      accountNumber: { type: String, default: "" },
+      accountDetails: { type: String, default: "" },
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 commissionPaymentSchema.index({ agentEmail: 1, monthKey: 1, paidAt: -1 });

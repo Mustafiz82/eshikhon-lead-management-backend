@@ -269,6 +269,11 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
         },
       },
     },
+    {
+      $addFields: {
+        commissionDue: { $round: ["$commissionDue", 0] },
+      },
+    },
 
     {
       $project: {
@@ -412,11 +417,13 @@ export const payCommission = async (req, res) => {
       reference,
       note,
       payer,
-      payee
+      payee,
     } = req.body;
 
     if (!agentEmail || !monthKey) {
-      return res.status(400).json({ error: "agentEmail and monthKey required" });
+      return res
+        .status(400)
+        .json({ error: "agentEmail and monthKey required" });
     }
 
     const amt = Number(amount);
@@ -435,6 +442,10 @@ export const payCommission = async (req, res) => {
       return res.status(400).json({ error: "snapshot not found" });
     }
 
+    const userDoc = await user.findOne({ email: agentEmail.toLowerCase() });
+
+    const snapshot = userDoc?.paymentInfo || {};
+
     const payment = await commissionPayment.create({
       agentEmail: agentEmail.toLowerCase(),
       agentName: snap.agentName || "",
@@ -447,13 +458,19 @@ export const payCommission = async (req, res) => {
       payer: {
         name: payer?.name || "",
         number: payer?.number || "",
-        accountType: payer?.accountType || ""
+        accountType: payer?.accountType || "",
       },
 
       payee: {
         name: payee?.name || "",
         number: payee?.number || "",
-        accountDetails: payee?.accountDetails || ""
+        accountDetails: payee?.accountDetails || "",
+      },
+
+      paymentInfoSnapshot: {
+        name: snapshot.name,
+        accountNumber: snapshot.accountNumber,
+        accountDetails: snapshot.accountDetails,
       },
 
       paidBy: "admin",
@@ -462,15 +479,13 @@ export const payCommission = async (req, res) => {
 
     return res.status(201).json({
       message: "paid saved",
-      payment
+      payment,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(400).json({ error: error.message });
   }
 };
-
 
 export const getLastPaymentInfo = async (req, res) => {
   try {
@@ -491,15 +506,13 @@ export const getLastPaymentInfo = async (req, res) => {
 
     return res.json({
       payer: lastPayment.payer,
-      payee: lastPayment.payee
+      payee: lastPayment.payee,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(400).json({ error: error.message });
   }
 };
-
 
 export const getCommissionPaymentHistory = async (req, res) => {
   try {
