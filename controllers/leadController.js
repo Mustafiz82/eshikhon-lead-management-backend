@@ -132,6 +132,8 @@ export const getAllLeads = async (req, res) => {
       assignDate,
       assignStartDate,
       assignEndDate,
+      paymentStartDate,
+      paymentEndDate,
       showOnlyFollowups,
       followUpDate,
       showOnlyMissedFollowUps,
@@ -156,6 +158,11 @@ export const getAllLeads = async (req, res) => {
 
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
+    const paymentStartDateFormat = new Date(paymentStartDate);
+    const paymentEndDateFormat = new Date(paymentEndDate);
+
+    console.log(paymentStartDateFormat);
+    console.log(paymentEndDateFormat);
 
     const filter = {};
     let sortOption;
@@ -197,12 +204,23 @@ export const getAllLeads = async (req, res) => {
       else filter.leadStatus = { $ne: "Pending" };
     }
 
-    console.log({ assignStartDateFormat, assignEndDateFormat });
     if (assignStartDate && assignEndDate) {
       // const { start, end } = getDateRange(assignDate, "assign");
       filter.assignDate = {
         $gte: assignStartDateFormat,
-        $lte: assignEndDateFormat,  
+        $lte: assignEndDateFormat,
+      };
+    }
+    console.log({ paymentStartDateFormat, paymentEndDateFormat });
+
+    if (paymentStartDate && paymentEndDate) {
+      filter.history = {
+        $elemMatch: {
+          date: {
+            $gte: paymentStartDateFormat,
+            $lte: paymentEndDateFormat,
+          },
+        },
       };
     }
 
@@ -399,6 +417,8 @@ export const getLeadsCount = async (req, res) => {
       assignDate,
       assignStartDate,
       assignEndDate,
+      paymentStartDate,
+      paymentEndDate,
       showOnlyFollowups,
       followUpDate,
       showOnlyMissedFollowUps,
@@ -413,6 +433,8 @@ export const getLeadsCount = async (req, res) => {
     const filter = {};
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
+    const paymentStartDateFormat = new Date(paymentStartDate);
+    const paymentEndDateFormat = new Date(paymentEndDate);
 
     // 1. Status
     if (status && status !== "All") {
@@ -459,11 +481,24 @@ export const getLeadsCount = async (req, res) => {
       else filter.leadStatus = { $ne: "Pending" };
     }
 
-
     // 9. AssignDate
     if (assignStartDate && assignEndDate) {
       // const { start, end } = getDateRange(assignDate, "assign");
-      filter.assignDate = { $gte: assignStartDateFormat, $lte: assignEndDateFormat };
+      filter.assignDate = {
+        $gte: assignStartDateFormat,
+        $lte: assignEndDateFormat,
+      };
+    }
+
+    if (paymentStartDate && paymentEndDate) {
+      filter.history = {
+        $elemMatch: {
+          date: {
+            $gte: paymentStartDateFormat,
+            $lte: paymentEndDateFormat,
+          },
+        },
+      };
     }
 
     // 10. Follow Ups Existence

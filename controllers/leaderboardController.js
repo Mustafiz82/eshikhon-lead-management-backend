@@ -559,15 +559,19 @@ export const getAdminLeadStats = async (req, res) => {
               branches: [
                 {
                   case: { $gt: ["$completionRate", 100] },
-                  then: { $multiply: ["$totalSales", 0.04] },
-                },
-                {
-                  case: { $gte: ["$completionRate", 81] },
                   then: { $multiply: ["$totalSales", 0.03] },
                 },
                 {
-                  case: { $gte: ["$completionRate", 61] },
+                  case: { $gte: ["$completionRate", 91] },
+                  then: { $multiply: ["$totalSales", 0.025] },
+                },
+                {
+                  case: { $gte: ["$completionRate", 81] },
                   then: { $multiply: ["$totalSales", 0.02] },
+                },
+                {
+                  case: { $gte: ["$completionRate", 61] },
+                  then: { $multiply: ["$totalSales", 0.015] },
                 },
                 {
                   case: { $gte: ["$completionRate", 40] },
@@ -758,71 +762,7 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // totalDue: {
-          //   $sum: {
-          //     $cond: [
-          //       // 1. FILTER: Must be Assigned this Month AND Enrolled
-          //       {
-          //         $and: [
-          //           { $gte: ["$assignDate", startOfMonth] },
-          //           { $lt: ["$assignDate", endOfMonth] },
-          //           { $eq: ["$leadStatus", "Enrolled"] }
-          //         ]
-          //       },
-          //       // 2. CALCULATION
-          //       {
-          //         $max: [
-          //           {
-          //             $subtract: [
-          //               // --- Step A: Price minus Discount ---
-          //               {
-          //                 $subtract: [
-          //                   { $toDouble: "$originalPrice" }, // The Base Price
-          //                   {
-          //                     $switch: {
-          //                       branches: [
-          //                         // CONDITION 1: FLAT (Keep the raw lead discount amount)
-          //                         {
-          //                           case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
-          //                           then: { $toDouble: "$leadDiscount" }
-          //                         },
-          //                         // CONDITION 2: PERCENT (Calculate the actual amount)
-          //                         {
-          //                           case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
-          //                           then: {
-          //                             $multiply: [
-          //                               { $toDouble: "$originalPrice" },
-          //                               { $divide: [{ $toDouble: "$leadDiscount" }, 100] }
-          //                             ]
-          //                           }
-          //                         }
-          //                       ],
-          //                       // Default: If no unit matches, Discount is 0
-          //                       default: 0
-          //                     }
-          //                   }
-          //                 ]
-          //               },
-          //               // --- Step B: Minus Total Paid ---
-          //               {
-          //                 $sum: {
-          //                   $map: {
-          //                     input: { $ifNull: ["$history", []] },
-          //                     as: "p",
-          //                     in: { $toDouble: "$$p.paidAmount" }
-          //                   }
-          //                 }
-          //               }
-          //             ]
-          //           },
-          //           0 // Safety: Result cannot be negative
-          //         ]
-          //       },
-          //       // 3. IF FILTER FAILS: Count 0
-          //       0
-          //     ]
-          //   }
-          // },
+         
 
           totalDue: {
             $sum: {
@@ -1240,20 +1180,29 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 80] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.02] },
+                  then: { $multiply: ["$totalSales", 0.015] },
                 },
                 {
                   case: {
                     $and: [
                       { $gte: ["$targetCompletionRate", 81] },
+                      { $lte: ["$targetCompletionRate", 90] },
+                    ],
+                  },
+                  then: { $multiply: ["$totalSales", 0.02] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$targetCompletionRate", 91] },
                       { $lte: ["$targetCompletionRate", 100] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.03] },
+                  then: { $multiply: ["$totalSales", 0.025] },
                 },
                 {
                   case: { $gt: ["$targetCompletionRate", 100] },
-                  then: { $multiply: ["$totalSales", 0.04] },
+                  then: { $multiply: ["$totalSales", 0.03] },
                 },
               ],
               default: 0,
