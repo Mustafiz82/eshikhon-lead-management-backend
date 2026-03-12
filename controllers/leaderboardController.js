@@ -312,13 +312,36 @@ export const getAdminLeadStats = async (req, res) => {
               ],
             },
           },
+          // enrolledCount: {
+          //   $sum: {
+          //     $cond: [
+          //       {
+          //         $and: [
+          //           { $gte: ["$enrolledAt", startOfMonth] },
+          //           { $lt: ["$enrolledAt", endOfMonth] },
+          //           { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+          //         ],
+          //       },
+          //       1,
+          //       0,
+          //     ],
+          //   },
+          // },
+
           enrolledCount: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $gte: ["$enrolledAt", startOfMonth] },
-                    { $lt: ["$enrolledAt", endOfMonth] },
+                    {
+                      $gte: [
+                        { $arrayElemAt: ["$history.date", 0] },
+                        startOfMonth,
+                      ],
+                    },
+                    {
+                      $lt: [{ $arrayElemAt: ["$history.date", 0] }, endOfMonth],
+                    },
                     { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
                   ],
                 },
@@ -327,7 +350,6 @@ export const getAdminLeadStats = async (req, res) => {
               ],
             },
           },
-
           // --- REFUND AMOUNT ---
           totalRefunds: {
             $sum: {
@@ -762,8 +784,6 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-         
-
           totalDue: {
             $sum: {
               $cond: [
@@ -931,13 +951,35 @@ export const getAgentleadState = async (req, res) => {
 
           // --- OPTION E: Enrolled Date Based ---
           // Field: enrolledAt (Using this as the "First Payment/Enrollment" date)
+          // totalEnrolled: {
+          //   $sum: {
+          //     $cond: [
+          //       {
+          //         $and: [
+          //           { $gte: ["$enrolledAt", startOfMonth] },
+          //           { $lt: ["$enrolledAt", endOfMonth] },
+          //           { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+          //         ],
+          //       },
+          //       1,
+          //       0,
+          //     ],
+          //   },
+          // },
           totalEnrolled: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $gte: ["$enrolledAt", startOfMonth] },
-                    { $lt: ["$enrolledAt", endOfMonth] },
+                    {
+                      $gte: [
+                        { $arrayElemAt: ["$history.date", 0] },
+                        startOfMonth,
+                      ],
+                    },
+                    {
+                      $lt: [{ $arrayElemAt: ["$history.date", 0] }, endOfMonth],
+                    },
                     { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
                   ],
                 },

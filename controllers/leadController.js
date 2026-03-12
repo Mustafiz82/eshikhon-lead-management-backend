@@ -130,6 +130,7 @@ export const getAllLeads = async (req, res) => {
       leadStatus,
       stage,
       assignDate,
+      paymentMode,
       assignStartDate,
       assignEndDate,
       paymentStartDate,
@@ -213,7 +214,7 @@ export const getAllLeads = async (req, res) => {
     }
     console.log({ paymentStartDateFormat, paymentEndDateFormat });
 
-    if (paymentStartDate && paymentEndDate) {
+     if (paymentStartDate && paymentEndDate && paymentMode== "DateRange") {
       filter.history = {
         $elemMatch: {
           date: {
@@ -415,6 +416,7 @@ export const getLeadsCount = async (req, res) => {
       leadStatus,
       stage,
       assignDate,
+      paymentMode,
       assignStartDate,
       assignEndDate,
       paymentStartDate,
@@ -490,7 +492,7 @@ export const getLeadsCount = async (req, res) => {
       };
     }
 
-    if (paymentStartDate && paymentEndDate) {
+    if (paymentStartDate && paymentEndDate && paymentMode== "DateRange") {
       filter.history = {
         $elemMatch: {
           date: {
