@@ -776,6 +776,7 @@ export const getAgentleadState = async (req, res) => {
                   $and: [
                     { $gte: ["$assignDate", startOfMonth] },
                     { $lt: ["$assignDate", endOfMonth] },
+                    { $ne: ["$creatorRole", "agent"] },
                   ],
                 },
                 "$effectivePrice",
@@ -880,8 +881,7 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // --- OPTION B: Last Contacted Based ---
-          // Field: lastContacted (from Schema)
+        
           unreachableCount: {
             $sum: {
               $cond: [
@@ -914,8 +914,7 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // --- OPTION C: Present Day (Today) Based ---
-          // Field: lastContacted (Checking against Today's date range)
+         
           connectedCallCountToday: {
             $sum: {
               $cond: [
@@ -932,8 +931,7 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // --- OPTION D: Follow Up Date Based ---
-          // Field: followUpDate
+         
           followUpCount: {
             $sum: {
               $cond: [
@@ -949,23 +947,7 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // --- OPTION E: Enrolled Date Based ---
-          // Field: enrolledAt (Using this as the "First Payment/Enrollment" date)
-          // totalEnrolled: {
-          //   $sum: {
-          //     $cond: [
-          //       {
-          //         $and: [
-          //           { $gte: ["$enrolledAt", startOfMonth] },
-          //           { $lt: ["$enrolledAt", endOfMonth] },
-          //           { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
-          //         ],
-          //       },
-          //       1,
-          //       0,
-          //     ],
-          //   },
-          // },
+          
           totalEnrolled: {
             $sum: {
               $cond: [
@@ -989,13 +971,89 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          // --- OPTION F: Sales Sum Based ---
-          // Field: history (Array in Schema) -> paidAmount
+          
 
           totalSales: {
             $sum: {
-              $subtract: [
-                // 1) POSITIVE: Sum of payments made in the selected month
+              $cond: [
+                { $ne: ["$creatorRole", "agent"] },
+                {
+                  $subtract: [
+                    {
+                      $reduce: {
+                        input: {
+                          $filter: {
+                            input: { $ifNull: ["$history", []] },
+                            as: "p",
+                            cond: {
+                              $let: {
+                                vars: {
+                                  pDate: {
+                                    $convert: {
+                                      input: "$$p.date",
+                                      to: "date",
+                                      onError: null,
+                                      onNull: null,
+                                    },
+                                  },
+                                },
+                                in: {
+                                  $and: [
+                                    { $ne: ["$$pDate", null] },
+                                    { $gte: ["$$pDate", startOfMonth] },
+                                    { $lt: ["$$pDate", endOfMonth] },
+                                  ],
+                                },
+                              },
+                            },
+                          },
+                        },
+                        initialValue: 0,
+                        in: {
+                          $add: [
+                            "$$value",
+                            {
+                              $convert: {
+                                input: "$$this.paidAmount",
+                                to: "double",
+                                onError: 0,
+                                onNull: 0,
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$enrolledAt", startOfMonth] },
+                            { $lt: ["$enrolledAt", endOfMonth] },
+                          ],
+                        },
+                        {
+                          $convert: {
+                            input: { $ifNull: ["$refundAmount", 0] },
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+
+          agentCreatedSales: {
+            $sum: {
+              $cond: [
+                { $eq: ["$creatorRole", "agent"] },
                 {
                   $reduce: {
                     input: {
@@ -1041,27 +1099,61 @@ export const getAgentleadState = async (req, res) => {
                     },
                   },
                 },
+                0,
+              ],
+            },
+          },
 
-                // 2) NEGATIVE: Subtract refundAmount ONLY if selected month == Enrollment Month
+          assignedSales: {
+            $sum: {
+              $cond: [
+                { $ne: ["$creatorRole", "agent"] },
                 {
-                  $cond: [
-                    {
-                      $and: [
-                        { $gte: ["$enrolledAt", startOfMonth] },
-                        { $lt: ["$enrolledAt", endOfMonth] },
-                      ],
-                    },
-                    {
-                      $convert: {
-                        input: { $ifNull: ["$refundAmount", 0] },
-                        to: "double",
-                        onError: 0,
-                        onNull: 0,
+                  $reduce: {
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$history", []] },
+                        as: "p",
+                        cond: {
+                          $let: {
+                            vars: {
+                              pDate: {
+                                $convert: {
+                                  input: "$$p.date",
+                                  to: "date",
+                                  onError: null,
+                                  onNull: null,
+                                },
+                              },
+                            },
+                            in: {
+                              $and: [
+                                { $ne: ["$$pDate", null] },
+                                { $gte: ["$$pDate", startOfMonth] },
+                                { $lt: ["$$pDate", endOfMonth] },
+                              ],
+                            },
+                          },
+                        },
                       },
                     },
-                    0,
-                  ],
+                    initialValue: 0,
+                    in: {
+                      $add: [
+                        "$$value",
+                        {
+                          $convert: {
+                            input: "$$this.paidAmount",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                      ],
+                    },
+                  },
                 },
+                0,
               ],
             },
           },
@@ -1076,9 +1168,9 @@ export const getAgentleadState = async (req, res) => {
                     { $lt: ["$enrolledAt", endOfMonth] },
                   ],
                 },
-                // 2. If YES, add the refundAmount
+               
                 { $ifNull: ["$refundAmount", 0] },
-                // 3. If NO (different month), add 0
+              
                 0,
               ],
             },
@@ -1148,6 +1240,30 @@ export const getAgentleadState = async (req, res) => {
               },
             },
           },
+
+          agentCreatedLeadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$creatorRole", "agent"] },
+                    {
+                      $gte: [
+                        { $arrayElemAt: ["$history.date", 0] },
+                        startOfMonth,
+                      ],
+                    },
+                    {
+                      $lt: [{ $arrayElemAt: ["$history.date", 0] }, endOfMonth],
+                    },
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
 
@@ -1189,7 +1305,7 @@ export const getAgentleadState = async (req, res) => {
                 $round: [
                   {
                     $multiply: [
-                      { $divide: ["$totalSales", "$targetAmount"] },
+                      { $divide: ["$assignedSales", "$targetAmount"] },
                       100,
                     ],
                   },
@@ -1203,7 +1319,50 @@ export const getAgentleadState = async (req, res) => {
       },
       {
         $addFields: {
-          commission: {
+          agentCreatedCommission: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 1] },
+                      { $lte: ["$agentCreatedLeadCount", 50] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.005] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 51] },
+                      { $lte: ["$agentCreatedLeadCount", 100] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.0075] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 101] },
+                      { $lte: ["$agentCreatedLeadCount", 200] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.01] },
+                },
+                {
+                  case: { $gt: ["$agentCreatedLeadCount", 200] },
+                  then: { $multiply: ["$agentCreatedSales", 0.015] },
+                },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          assignedCommission: {
             $switch: {
               branches: [
                 {
@@ -1213,7 +1372,7 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 60] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.01] },
+                  then: { $multiply: ["$assignedSales", 0.01] },
                 },
                 {
                   case: {
@@ -1222,7 +1381,7 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 80] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.015] },
+                  then: { $multiply: ["$assignedSales", 0.015] },
                 },
                 {
                   case: {
@@ -1231,7 +1390,7 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 90] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.02] },
+                  then: { $multiply: ["$assignedSales", 0.02] },
                 },
                 {
                   case: {
@@ -1240,11 +1399,11 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 100] },
                     ],
                   },
-                  then: { $multiply: ["$totalSales", 0.025] },
+                  then: { $multiply: ["$assignedSales", 0.025] },
                 },
                 {
                   case: { $gt: ["$targetCompletionRate", 100] },
-                  then: { $multiply: ["$totalSales", 0.03] },
+                  then: { $multiply: ["$assignedSales", 0.03] },
                 },
               ],
               default: 0,
@@ -1252,7 +1411,14 @@ export const getAgentleadState = async (req, res) => {
           },
         },
       },
-
+      
+      {
+        $addFields: {
+          commission: {
+            $add: ["$agentCreatedCommission", "$assignedCommission"],
+          },
+        },
+      },
       // Stage 7: Clean
       {
         $project: {

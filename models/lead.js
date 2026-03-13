@@ -22,6 +22,7 @@ const leadSchema = new mongoose.Schema(
       default: "Not Provided"
     },
     createdBy: { type: String, required: true },
+    creatorRole: { type: String },
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
     assignDate: { type: Date },
