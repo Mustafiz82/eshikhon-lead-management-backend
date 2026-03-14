@@ -267,6 +267,7 @@ export const getAdminLeadStats = async (req, res) => {
                   $and: [
                     { $gte: ["$assignDate", startOfMonth] },
                     { $lt: ["$assignDate", endOfMonth] },
+                    { $ne: ["$creatorRole", "agent"] },
                   ],
                 },
                 "$effectivePrice",
@@ -312,21 +313,88 @@ export const getAdminLeadStats = async (req, res) => {
               ],
             },
           },
-          // enrolledCount: {
-          //   $sum: {
-          //     $cond: [
-          //       {
-          //         $and: [
-          //           { $gte: ["$enrolledAt", startOfMonth] },
-          //           { $lt: ["$enrolledAt", endOfMonth] },
-          //           { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
-          //         ],
-          //       },
-          //       1,
-          //       0,
-          //     ],
-          //   },
-          // },
+
+          agentCreatedSales: {
+            $sum: {
+              $cond: [
+                { $eq: ["$creatorRole", "agent"] },
+                {
+                  $reduce: {
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$history", []] },
+                        as: "p",
+                        cond: {
+                          $and: [
+                            { $gte: ["$$p.date", startOfMonth] },
+                            { $lt: ["$$p.date", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
+                    initialValue: 0,
+                    in: {
+                      $sum: ["$$value", { $toDouble: "$$this.paidAmount" }],
+                    },
+                  },
+                },
+                0,
+              ],
+            },
+          },
+
+          assignedSales: {
+            $sum: {
+              $cond: [
+                { $ne: ["$creatorRole", "agent"] },
+                {
+                  $reduce: {
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$history", []] },
+                        as: "p",
+                        cond: {
+                          $and: [
+                            { $gte: ["$$p.date", startOfMonth] },
+                            { $lt: ["$$p.date", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
+                    initialValue: 0,
+                    in: {
+                      $sum: ["$$value", { $toDouble: "$$this.paidAmount" }],
+                    },
+                  },
+                },
+                0,
+              ],
+            },
+          },
+
+          agentCreatedLeadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$creatorRole", "agent"] },
+                    {
+                      $gte: [
+                        { $arrayElemAt: ["$history.date", 0] },
+                        startOfMonth,
+                      ],
+                    },
+                    {
+                      $lt: [{ $arrayElemAt: ["$history.date", 0] }, endOfMonth],
+                    },
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
 
           enrolledCount: {
             $sum: {
@@ -576,28 +644,39 @@ export const getAdminLeadStats = async (req, res) => {
       },
       {
         $addFields: {
-          individualCommission: {
+          agentCreatedCommission: {
             $switch: {
               branches: [
                 {
-                  case: { $gt: ["$completionRate", 100] },
-                  then: { $multiply: ["$totalSales", 0.03] },
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 1] },
+                      { $lte: ["$agentCreatedLeadCount", 50] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.005] },
                 },
                 {
-                  case: { $gte: ["$completionRate", 91] },
-                  then: { $multiply: ["$totalSales", 0.025] },
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 51] },
+                      { $lte: ["$agentCreatedLeadCount", 100] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.0075] },
                 },
                 {
-                  case: { $gte: ["$completionRate", 81] },
-                  then: { $multiply: ["$totalSales", 0.02] },
+                  case: {
+                    $and: [
+                      { $gte: ["$agentCreatedLeadCount", 101] },
+                      { $lte: ["$agentCreatedLeadCount", 200] },
+                    ],
+                  },
+                  then: { $multiply: ["$agentCreatedSales", 0.01] },
                 },
                 {
-                  case: { $gte: ["$completionRate", 61] },
-                  then: { $multiply: ["$totalSales", 0.015] },
-                },
-                {
-                  case: { $gte: ["$completionRate", 40] },
-                  then: { $multiply: ["$totalSales", 0.01] },
+                  case: { $gt: ["$agentCreatedLeadCount", 200] },
+                  then: { $multiply: ["$agentCreatedSales", 0.015] },
                 },
               ],
               default: 0,
@@ -605,20 +684,140 @@ export const getAdminLeadStats = async (req, res) => {
           },
         },
       },
+      // {
+      //   $addFields: {
+      //     // individualCommission: {
+      //     //   $switch: {
+      //     //     branches: [
+      //     //       {
+      //     //         case: { $gt: ["$completionRate", 100] },
+      //     //         then: { $multiply: ["$totalSales", 0.03] },
+      //     //       },
+      //     //       {
+      //     //         case: { $gte: ["$completionRate", 91] },
+      //     //         then: { $multiply: ["$totalSales", 0.025] },
+      //     //       },
+      //     //       {
+      //     //         case: { $gte: ["$completionRate", 81] },
+      //     //         then: { $multiply: ["$totalSales", 0.02] },
+      //     //       },
+      //     //       {
+      //     //         case: { $gte: ["$completionRate", 61] },
+      //     //         then: { $multiply: ["$totalSales", 0.015] },
+      //     //       },
+      //     //       {
+      //     //         case: { $gte: ["$completionRate", 40] },
+      //     //         then: { $multiply: ["$totalSales", 0.01] },
+      //     //       },
+      //     //     ],
+      //     //     default: 0,
+      //     //   },
+      //     // },
+      //   },
+      // },
+      {
+        $addFields: {
+          assignedCommission: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$completionRate", 40] },
+                      { $lte: ["$completionRate", 60] },
+                    ],
+                  },
+                  then: { $multiply: ["$assignedSales", 0.01] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$completionRate", 61] },
+                      { $lte: ["$completionRate", 80] },
+                    ],
+                  },
+                  then: { $multiply: ["$assignedSales", 0.015] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$completionRate", 81] },
+                      { $lte: ["$completionRate", 90] },
+                    ],
+                  },
+                  then: { $multiply: ["$assignedSales", 0.02] },
+                },
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$completionRate", 91] },
+                      { $lte: ["$completionRate", 100] },
+                    ],
+                  },
+                  then: { $multiply: ["$assignedSales", 0.025] },
+                },
+                {
+                  case: { $gt: ["$completionRate", 100] },
+                  then: { $multiply: ["$assignedSales", 0.03] },
+                },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          individualCommission: {
+            $add: ["$agentCreatedCommission", "$assignedCommission"],
+          },
+        },
+      },
 
       // Stage: GLOBAL GROUPING
+      // {
+      //   $group: {
+      //     _id: null,
+      //     totalPending: { $sum: "$pendingCount" },
+      //     totalEnrolled: { $sum: "$enrolledCount" },
+      //     totalSales: { $sum: "$totalSales" },
+      //     totalRefunds: { $sum: "$totalRefunds" },
+      //     totalRefundCount: { $sum: "$refundCount" }, // <--- SUMMING REFUND COUNTS
+      //     totalDue: { $sum: "$totalDue" },
+      //     totalUnreachable: { $sum: "$unreachableCount" },
+      //     totalJoinedOnSeminar: { $sum: "$joinedOnSeminarCount" },
+      //     grandTotalTargetAmount: { $sum: "$individualTargetAmount" },
+      //     grandTotalCommission: { $sum: "$individualCommission" },
+      //   },
+      // },
+
       {
         $group: {
           _id: null,
+
           totalPending: { $sum: "$pendingCount" },
           totalEnrolled: { $sum: "$enrolledCount" },
+
+          totalAgentCreatedSales: { $sum: "$agentCreatedSales" },
+          totalAssignedSales: { $sum: "$assignedSales" },
+
+          totalAgentCreatedLeadCount: { $sum: "$agentCreatedLeadCount" },
+
           totalSales: { $sum: "$totalSales" },
+
           totalRefunds: { $sum: "$totalRefunds" },
-          totalRefundCount: { $sum: "$refundCount" }, // <--- SUMMING REFUND COUNTS
+          totalRefundCount: { $sum: "$refundCount" },
+
           totalDue: { $sum: "$totalDue" },
+
           totalUnreachable: { $sum: "$unreachableCount" },
           totalJoinedOnSeminar: { $sum: "$joinedOnSeminarCount" },
+
           grandTotalTargetAmount: { $sum: "$individualTargetAmount" },
+
+          totalAgentCreatedCommission: { $sum: "$agentCreatedCommission" },
+          totalAssignedCommission: { $sum: "$assignedCommission" },
+
           grandTotalCommission: { $sum: "$individualCommission" },
         },
       },
@@ -631,18 +830,27 @@ export const getAdminLeadStats = async (req, res) => {
       totalUnassigned: totalUnassignedCreated,
       totalAssigned: totalAssignedCreated,
 
-      // Complex Stats
       totalEnrolled: complexStats.totalEnrolled || 0,
       totalPending: complexStats.totalPending || 0,
+
       totalSales: complexStats.totalSales || 0,
+      assignedSales: complexStats.totalAssignedSales || 0,
+      agentCreatedSales: complexStats.totalAgentCreatedSales || 0,
+
+      agentCreatedLeadCount: complexStats.totalAgentCreatedLeadCount || 0,
+
       joinedOnSeminar: complexStats.totalJoinedOnSeminar || 0,
+
       targetAmount: Math.round(complexStats.grandTotalTargetAmount || 0),
+
       commission: Math.round(complexStats.grandTotalCommission || 0),
+      assignedCommission: complexStats.totalAssignedCommission || 0,
+      agentCreatedCommission: complexStats.totalAgentCreatedCommission || 0,
+
       totalDue: complexStats.totalDue || 0,
 
-      // Refunds
       totalRefunds: complexStats.totalRefunds || 0,
-      refundedCount: complexStats.totalRefundCount || 0, // <--- Return Count
+      refundedCount: complexStats.totalRefundCount || 0,
 
       totalUnreachable: complexStats.totalUnreachable || 0,
     });
@@ -881,7 +1089,6 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-        
           unreachableCount: {
             $sum: {
               $cond: [
@@ -914,7 +1121,6 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-         
           connectedCallCountToday: {
             $sum: {
               $cond: [
@@ -931,7 +1137,6 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-         
           followUpCount: {
             $sum: {
               $cond: [
@@ -947,7 +1152,6 @@ export const getAgentleadState = async (req, res) => {
             },
           },
 
-          
           totalEnrolled: {
             $sum: {
               $cond: [
@@ -970,8 +1174,6 @@ export const getAgentleadState = async (req, res) => {
               ],
             },
           },
-
-          
 
           totalSales: {
             $sum: {
@@ -1168,9 +1370,9 @@ export const getAgentleadState = async (req, res) => {
                     { $lt: ["$enrolledAt", endOfMonth] },
                   ],
                 },
-               
+
                 { $ifNull: ["$refundAmount", 0] },
-              
+
                 0,
               ],
             },
@@ -1411,7 +1613,7 @@ export const getAgentleadState = async (req, res) => {
           },
         },
       },
-      
+
       {
         $addFields: {
           commission: {
