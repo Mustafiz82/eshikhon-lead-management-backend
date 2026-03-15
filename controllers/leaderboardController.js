@@ -1649,23 +1649,52 @@ export const getAgentleadState = async (req, res) => {
   }
 };
 
+// export const getLeadsGrowth = async (req, res) => {
+//   try {
+//     const year = parseInt(req.query.year) || new Date().getFullYear();
+
+//     const monthlyStats = await Promise.all(
+//       Array.from({ length: 12 }, (_, i) => {
+//         const start = new Date(year, i, 1);
+//         const end = new Date(year, i + 1, 1);
+
+//         return Promise.all([
+//           Lead.countDocuments({ assignedAt: { $gte: start, $lt: end } }),
+//           Lead.countDocuments({
+//             createdAt: { $gte: start, $lt: end },
+//             leadStatus: "Enrolled",
+//           }),
+//         ]);
+//       }),
+//     );
+
+//     const totalLeads = monthlyStats.map(([t]) => t);
+//     const enrolledLeads = monthlyStats.map(([_, e]) => e);
+
+//     return res.json({ totalLeads, enrolledLeads });
+//   } catch (error) {
+//     return res.status(400).json({ error: error.message });
+//   }
+// };
+
 export const getLeadsGrowth = async (req, res) => {
   try {
-    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const now = new Date();
 
     const monthlyStats = await Promise.all(
       Array.from({ length: 12 }, (_, i) => {
-        const start = new Date(year, i, 1);
-        const end = new Date(year, i + 1, 1);
+        // go back months
+        const start = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() - (10 - i), 1);
 
         return Promise.all([
-          Lead.countDocuments({ createdAt: { $gte: start, $lt: end } }),
+          Lead.countDocuments({ assignDate: { $gte: start, $lt: end } }),
           Lead.countDocuments({
-            createdAt: { $gte: start, $lt: end },
+            "history.0.date": { $gte: start, $lt: end },
             leadStatus: "Enrolled",
           }),
         ]);
-      }),
+      })
     );
 
     const totalLeads = monthlyStats.map(([t]) => t);
@@ -1676,6 +1705,8 @@ export const getLeadsGrowth = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
+
+
 
 export const getDailyCallCount = async (req, res) => {
   try {
