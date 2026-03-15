@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema(
 
     password: { type: String, minlength: 6, select: false, required: true },
 
-    role: { type: String, enum: ["user", "admin"], default: "user" },
+    role: { type: String, enum: ["user", "admin", "manager"], default: "user" },
 
     designation: {
       type: String,
@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
 
     target: { type: Number, default: 0, min: 0 },
     paymentInfo: {
-      name: { type: String, default: "" },
+      name: { type: String, default: "" },  
       accountNumber: { type: String, default: "" },
       accountDetails: { type: String, default: "" },
       updatedAt: { type: Date },
