@@ -44,6 +44,7 @@ export const updateDiscount = async (req, res) => {
       "authority",
       "mode",
       "value",
+      "appliedOn",
       "minValue",
       "maxValue",
       "capAmount",

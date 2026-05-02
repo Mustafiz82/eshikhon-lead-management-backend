@@ -15,7 +15,7 @@ const DiscountSchema = new Schema(
         capAmount: { type: Number, default: null, },
         startAt: { type: Date, default: Date.now, },
         expireAt: { type: Date, index: true, default: () => new Date(new Date().setFullYear(new Date().getFullYear() + 100)) },
-
+        appliedOn :  { type: String, enum: ["regularPrice", "sellPrice"], required: true, }, 
         appliesTo: [
             { type: Schema.Types.ObjectId, ref: "Course", index: true }
         ],
