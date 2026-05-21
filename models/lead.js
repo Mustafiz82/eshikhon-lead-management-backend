@@ -77,6 +77,10 @@ const leadSchema = new mongoose.Schema(
     },
 
 
+    uniqueID : {
+      type : String
+
+    },
 
     totalPaid: { type: Number, default: 0 },        // How much in total he have paid 
     totalDue: { type: Number, default: 0 },         // how much total due he  has  to pay 
