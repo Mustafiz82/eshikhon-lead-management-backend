@@ -1,11 +1,12 @@
 import { Router } from "express"
-import { createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, markJoinedFromAttendance, updateLeads, updateSingleLead } from "../controllers/leadController.js"
+import { createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, getOrderDetails, markJoinedFromAttendance, updateLeads, updateSingleLead } from "../controllers/leadController.js"
 
 export const leadRoute = Router()
 
 leadRoute.post("/", createLead)
 leadRoute.post("/single-lead", createSingleLead)
 leadRoute.get("/", getAllLeads)
+leadRoute.get("/order/:id", getOrderDetails)
 leadRoute.get("/count", getLeadsCount)
 leadRoute.get("/source", getLeadSources)
 leadRoute.get("/intersted-course", getInterestedCourses)
