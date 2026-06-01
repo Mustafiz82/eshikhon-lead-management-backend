@@ -869,6 +869,9 @@ export const getAgentleadState = async (req, res) => {
       return res.status(400).json({ error: "Month and Year are required" });
     }
 
+
+    
+
     // --- 1. Date Ranges Setup ---
     // const startOfMonth = new Date(year, month - 1, 1);
     // const endOfMonth = new Date(year, month, 1);
@@ -877,6 +880,7 @@ export const getAgentleadState = async (req, res) => {
     const endOfMonth = new Date(req.query.endDate);
 
     console.log(startOfMonth, endOfMonth);
+
 
     // For Option C (Today's Activity)
     const startOfToday = new Date();
