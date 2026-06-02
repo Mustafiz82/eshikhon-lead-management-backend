@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import lead from "../models/lead.js";
 import course from "../models/course.js";
+import axios from "axios";
 
 export const createLead = async (req, res) => {
   try {
@@ -160,7 +161,6 @@ export const getAllLeads = async (req, res) => {
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
     const paymentStartDateFormat = new Date(paymentStartDate);
-
 
     const paymentEndDateFormat = new Date(paymentEndDate);
     // If it is midnight of Bangladesh Standard Time (18:00 UTC), set it to the end of that day (17:59:59 UTC)
@@ -322,7 +322,6 @@ export const getAllLeads = async (req, res) => {
 
     console.log(status, course, search, sort, limit, currentPage);
 
-    
     const leadRes = await lead
       .find(filter, projection)
       .sort(sortOption)
@@ -335,6 +334,134 @@ export const getAllLeads = async (req, res) => {
     res.status(200).json(leadRes);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+// 4370673  buy one get one
+// 4374122  with discoutn applied
+// 4374060  1 person 3 order
+
+export const getOrderDetails = async (req, res) => {
+  const { searchInput } = req.query;
+
+  try {
+    const credentials = Buffer.from(
+      `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
+    ).toString("base64");
+
+    const response = await axios.get(
+      `https://eshikhon.com.bd/wp-json/wc/v3/orders/${req.params.id}`,
+      {
+        headers: {
+          Authorization: `Basic ${credentials}`,
+        },
+      },
+    );
+
+    const order = response.data;
+
+    // return res.json(order)
+
+    if (!order.line_items || order.line_items.length === 0) {
+      return res
+        .status(404)
+        .send({ message: "No courses found in this order" });
+    }
+
+    // 1. Helper function to clean name and determine type
+    const processItem = (item) => {
+      const rawName = item.name;
+      // Clean name: Remove everything inside and including brackets (e.g., "(Live Course)")
+      const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
+
+      let type = "unknown";
+      if (rawName.toLowerCase().includes("live course")) {
+        type = "Online";
+      } else if (rawName.toLowerCase().includes("offline course")) {
+        type = "Offline";
+      } else if (rawName.toLowerCase().includes("video course")) {
+        type = "video"; // We will use this to filter later
+      }
+
+
+
+      return {
+        originalPrice: parseFloat(item.subtotal),
+        courseName: rawName, // Name as it appears in WooCommerce
+        cleanedName: cleanedName,
+        discount: parseFloat(item.subtotal) - parseFloat(item.total),
+        total: parseFloat(item.total),
+        type: type,
+      };
+    };
+
+    // 2. Process all items and filter out "video" courses
+    const allProcessedItems = order.line_items.map((item) => processItem(item));
+
+
+
+    console.log(allProcessedItems);
+    const validItems = allProcessedItems.filter(
+      (item) => item.type !== "video",
+    );
+
+    if (validItems.length === 0) {
+      return res
+        .status(404)
+        .send({ message: "No valid Live or Offline courses found." });
+    }
+
+    // 3. Try to match with searchInput (Normalized)
+    let selectedCourse = null;
+    if (searchInput) {
+      const normalize = (str) =>
+        str
+          .toLowerCase()
+          .replace(/[^\w\s]/g, "")
+          .split(/\s+/)
+          .filter(Boolean);
+
+      const searchWords = normalize(searchInput);
+
+      selectedCourse = validItems.find((item) => {
+        const courseWords = normalize(item.cleanedName);
+
+        const matchedCount = courseWords.filter((word) =>
+          searchWords.includes(word),
+        ).length;
+
+        // % of course words found
+        return matchedCount / courseWords.length >= 0.7;
+      });
+    }
+
+    console.log(searchInput);
+    console.log(selectedCourse);
+
+    // 4. Fallback: If no match, pick the one with the highest subtotal
+    if (!selectedCourse) {
+      selectedCourse = validItems.reduce((prev, current) => {
+        return prev.originalPrice > current.originalPrice ? prev : current;
+      });
+    }
+
+    // 5. Final structure as requested
+    const result = {
+      originalPrice: selectedCourse.originalPrice.toFixed(2),
+      courseName: selectedCourse.courseName,
+      discount: selectedCourse.discount.toFixed(2),
+      total: selectedCourse.total.toFixed(2),
+      type: selectedCourse.type,
+    };
+
+    res.send(result);
+  } catch (error) {
+
+    console.log(error.message?.response?.data)
+    console.log(error?.response?.data || error?.response?.message);
+    res
+      .status(500)
+      .send(error.response?.data || { message: "Internal Server Error" });
   }
 };
 
