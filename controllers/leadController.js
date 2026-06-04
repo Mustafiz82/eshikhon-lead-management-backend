@@ -139,6 +139,7 @@ export const getAllLeads = async (req, res) => {
       showOnlyFollowups,
       followUpDate,
       showOnlyMissedFollowUps,
+      showOnlyMissedPayments,
       fields,
       lock,
       leadSource,
@@ -279,6 +280,19 @@ export const getAllLeads = async (req, res) => {
       );
 
       filter.followUpDate = {
+        $exists: true,
+        $ne: null,
+        $lt: bdNow, // strictly before current date-time
+      };
+    }
+
+    if (showOnlyMissedPayments === "true") {
+      const now = new Date();
+      const bdNow = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+      );
+
+      filter.nextEstimatedPaymentDate = {
         $exists: true,
         $ne: null,
         $lt: bdNow, // strictly before current date-time
