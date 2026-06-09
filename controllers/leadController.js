@@ -109,8 +109,40 @@ export const createSingleLead = async (req, res) => {
   try {
     const result = await lead.insertOne(req.body);
     res.status(201).json(result);
-  } catch (error) {
+  } catch (error) { 
     res.status(400).json({ error: error.message });
+  }
+};
+
+export const updateSingleCreatedLead = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await lead.findByIdAndUpdate(
+      id,
+      req.body,
+      {
+        new: true, // return updated document
+        runValidators: true, // apply schema validation
+      }
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
 
@@ -319,6 +351,8 @@ export const getAllLeads = async (req, res) => {
       sortOption = { createdAt: 1, _id: 1 };
     } else if (sort === "Descending") {
       sortOption = { createdAt: -1, _id: -1 };
+    } else if (sort === "Last Modified") {
+      sortOption = { updatedAt: -1, _id: -1 };
     } else {
       // Default (stable, newest first)
       sortOption = { createdAt: -1, _id: -1 };
@@ -397,8 +431,6 @@ export const getOrderDetails = async (req, res) => {
         type = "video"; // We will use this to filter later
       }
 
-
-
       return {
         originalPrice: parseFloat(item.subtotal),
         courseName: rawName, // Name as it appears in WooCommerce
@@ -411,8 +443,6 @@ export const getOrderDetails = async (req, res) => {
 
     // 2. Process all items and filter out "video" courses
     const allProcessedItems = order.line_items.map((item) => processItem(item));
-
-
 
     console.log(allProcessedItems);
     const validItems = allProcessedItems.filter(
@@ -470,8 +500,7 @@ export const getOrderDetails = async (req, res) => {
 
     res.send(result);
   } catch (error) {
-
-    console.log(error.message?.response?.data)
+    console.log(error.message?.response?.data);
     console.log(error?.response?.data || error?.response?.message);
     res
       .status(500)
@@ -516,45 +545,55 @@ export const getInterestedCourses = async (req, res) => {
   try {
     console.log("hit /getInterestedCourses");
 
-    // 1. Get unique 'interstedCourse' from the Lead collection
-    // We use Promise.all to run both database queries at the same time for speed
+    const { agentEmail } = req.query;
+
+    const leadMatch = {
+      interstedCourse: {
+        $exists: true,
+        $nin: [null, "", "not provided"]
+      }
+    };
+
+    // Filter only leads assigned to this agent
+    if (agentEmail) {
+      leadMatch.assignTo = agentEmail.toLowerCase();
+    }
+
     const [leadCourses, dbCourses] = await Promise.all([
-      // Query 1: Aggregate unique courses from Leads
       lead.aggregate([
         {
-          $match: {
-            interstedCourse: { $exists: true, $ne: null, $ne: "" },
-          },
+          $match: leadMatch
         },
         {
           $group: {
-            _id: "$interstedCourse",
-          },
+            _id: "$interstedCourse"
+          }
         },
         {
           $project: {
             _id: 0,
-            name: "$_id",
-          },
-        },
+            name: "$_id"
+          }
+        }
       ]),
 
-      // Query 2: Get all official course names from Course collection
-      course.find({}, { name: 1, _id: 0 }),
+      course.find({}, { name: 1, _id: 0 })
     ]);
 
-    // 2. Extract arrays of strings
-    const leadCourseNames = leadCourses.map((item) => item.name);
-    const dbCourseNames = dbCourses.map((item) => item.name);
+    const leadCourseNames = leadCourses.map(item => item.name);
+    const dbCourseNames = dbCourses.map(item => item.name);
 
-    // 3. Merge both arrays and remove duplicates using Set
-    // This ensures if "Web Dev" is in both Leads and Course, it only appears once
-    const uniqueCourses = [...new Set([...leadCourseNames, ...dbCourseNames])];
+    const uniqueCourses = [
+      ...new Set([
+        ...leadCourseNames,
+        ...dbCourseNames
+      ])
+    ];
 
-    // Optional: Sort them alphabetically
     uniqueCourses.sort();
 
     res.status(200).json(uniqueCourses);
+
   } catch (error) {
     console.error("Error fetching course filters:", error);
     res.status(500).json({ error: error.message });
