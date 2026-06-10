@@ -1233,24 +1233,24 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           $switch: {
             branches: [
               {
-                case: { $and: [{ $gte:["$targetCompletionRate", 40] }, { $lte: ["$targetCompletionRate", 60] }] },
+                case: { $and: [{ $gte:["$targetCompletionRate", 41] }, { $lte: ["$targetCompletionRate", 60] }] },
                 then: { $multiply: ["$assignedSales", 0.01] },
               },
               {
                 case: { $and: [{ $gte:["$targetCompletionRate", 61] }, { $lte: ["$targetCompletionRate", 80] }] },
-                then: { $multiply: ["$assignedSales", 0.015] },
+                then: { $multiply: ["$assignedSales", 0.0125] },
               },
               {
                 case: { $and: [{ $gte: ["$targetCompletionRate", 81] }, { $lte: ["$targetCompletionRate", 90] }] },
-                then: { $multiply:["$assignedSales", 0.02] },
+                then: { $multiply:["$assignedSales", 0.015] },
               },
               {
                 case: { $and:[{ $gte: ["$targetCompletionRate", 91] }, { $lte:["$targetCompletionRate", 100] }] },
-                then: { $multiply:["$assignedSales", 0.025] },
+                then: { $multiply:["$assignedSales", 0.0175] },
               },
               {
                 case: { $gt:["$targetCompletionRate", 100] },
-                then: { $multiply:["$assignedSales", 0.03] },
+                then: { $multiply:["$assignedSales", 0.02] },
               },
             ],
             default: 0,

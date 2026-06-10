@@ -1,1297 +1,1297 @@
-import mongoose from "mongoose";
-import lead from "../models/lead.js";
-import course from "../models/course.js";
-import axios from "axios";
+  import mongoose from "mongoose";
+  import lead from "../models/lead.js";
+  import course from "../models/course.js";
+  import axios from "axios";
 
-export const createLead = async (req, res) => {
-  try {
-    // Always work with an array
-    let leads = Array.isArray(req.body) ? req.body : [req.body];
+  export const createLead = async (req, res) => {
+    try {
+      // Always work with an array
+      let leads = Array.isArray(req.body) ? req.body : [req.body];
 
-    // Step 1️⃣ — Normalize values
-    leads = leads.map((lead) => {
-      return {
-        ...lead,
-        phone: String(lead.phone)?.trim(),
-        interstedCourse: lead.interstedCourse?.trim() || "not provided",
-      };
-    });
+      // Step 1️⃣ — Normalize values
+      leads = leads.map((lead) => {
+        return {
+          ...lead,
+          phone: String(lead.phone)?.trim(),
+          interstedCourse: lead.interstedCourse?.trim() || "not provided",
+        };
+      });
 
-    if (leads.length === 0) {
-      return res.status(400).json({ error: "No leads provided" });
-    }
-
-    // Initialize arrays for our categories
-    const duplicatesInPayload = [];
-    const duplicatesInDB = [];
-    const uniqueIncoming = []; // These are candidates for DB check
-
-    // Step 2️⃣ — Remove duplicates inside the same upload
-    const seenPairs = new Set();
-
-    for (const l of leads) {
-      const key = `${l.phone}-${l.interstedCourse}`;
-
-      if (seenPairs.has(key)) {
-        // Category 1: Duplicate inside the uploaded file
-        duplicatesInPayload.push(l);
-      } else {
-        seenPairs.add(key);
-        uniqueIncoming.push(l);
+      if (leads.length === 0) {
+        return res.status(400).json({ error: "No leads provided" });
       }
+
+      // Initialize arrays for our categories
+      const duplicatesInPayload = [];
+      const duplicatesInDB = [];
+      const uniqueIncoming = []; // These are candidates for DB check
+
+      // Step 2️⃣ — Remove duplicates inside the same upload
+      const seenPairs = new Set();
+
+      for (const l of leads) {
+        const key = `${l.phone}-${l.interstedCourse}`;
+
+        if (seenPairs.has(key)) {
+          // Category 1: Duplicate inside the uploaded file
+          duplicatesInPayload.push(l);
+        } else {
+          seenPairs.add(key);
+          uniqueIncoming.push(l);
+        }
+      }
+
+      // Step 3️⃣ — Find which of the unique candidates already exist in the DB
+      let existingPairs = new Set();
+
+      if (uniqueIncoming.length > 0) {
+        const existing = await lead
+          .find(
+            {
+              $or: uniqueIncoming.map((l) => ({
+                phone: l.phone,
+                interstedCourse: l.interstedCourse,
+              })),
+            },
+            { phone: 1, interstedCourse: 1 },
+          )
+          .lean();
+
+        // Create a Set for fast lookup
+        existingPairs = new Set(
+          existing.map((e) => `${e.phone}-${e.interstedCourse}`),
+        );
+      }
+
+      // Step 4️⃣ — Separate New Leads from DB Duplicates
+      const newLeads = [];
+
+      for (const l of uniqueIncoming) {
+        const key = `${l.phone}-${l.interstedCourse}`;
+
+        if (existingPairs.has(key)) {
+          // Category 2: Already exists in the Database
+          duplicatesInDB.push(l);
+        } else {
+          // Truly new lead
+          newLeads.push(l);
+        }
+      }
+
+      // Step 5️⃣ — Insert unique leads (if any)
+      let inserted = [];
+      if (newLeads.length > 0) {
+        inserted = await lead.insertMany(newLeads);
+      }
+
+      // Calculate totals
+      const totalSkipped = duplicatesInPayload.length + duplicatesInDB.length;
+
+      // Step 6️⃣ — Return the categorized response
+      return res.status(201).json({
+        ok: newLeads.length > 0, // True if at least one was inserted
+        message: `${inserted.length} new leads added, ${totalSkipped} skipped.`,
+        insertedCount: inserted.length,
+        skippedCount: totalSkipped,
+
+        // 🔹 The categorized skipped lists:
+        duplicatesInPayload: duplicatesInPayload,
+        duplicatesInDB: duplicatesInDB,
+      });
+    } catch (error) {
+      console.error("createLead error:", error);
+      res.status(500).json({ error: error.message });
     }
+  };
 
-    // Step 3️⃣ — Find which of the unique candidates already exist in the DB
-    let existingPairs = new Set();
+  export const createSingleLead = async (req, res) => {
+    console.log(req.body);
+    try {
+      const result = await lead.insertOne(req.body);
+      res.status(201).json(result);
+    } catch (error) { 
+      res.status(400).json({ error: error.message });
+    }
+  };
 
-    if (uniqueIncoming.length > 0) {
-      const existing = await lead
-        .find(
-          {
-            $or: uniqueIncoming.map((l) => ({
-              phone: l.phone,
-              interstedCourse: l.interstedCourse,
-            })),
-          },
-          { phone: 1, interstedCourse: 1 },
-        )
-        .lean();
+  export const updateSingleCreatedLead = async (req, res) => {
+    try {
+      const { id } = req.params;
 
-      // Create a Set for fast lookup
-      existingPairs = new Set(
-        existing.map((e) => `${e.phone}-${e.interstedCourse}`),
+      const result = await lead.findByIdAndUpdate(
+        id,
+        req.body,
+        {
+          new: true, // return updated document
+          runValidators: true, // apply schema validation
+        }
       );
-    }
 
-    // Step 4️⃣ — Separate New Leads from DB Duplicates
-    const newLeads = [];
-
-    for (const l of uniqueIncoming) {
-      const key = `${l.phone}-${l.interstedCourse}`;
-
-      if (existingPairs.has(key)) {
-        // Category 2: Already exists in the Database
-        duplicatesInDB.push(l);
-      } else {
-        // Truly new lead
-        newLeads.push(l);
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Lead not found",
+        });
       }
-    }
 
-    // Step 5️⃣ — Insert unique leads (if any)
-    let inserted = [];
-    if (newLeads.length > 0) {
-      inserted = await lead.insertMany(newLeads);
-    }
-
-    // Calculate totals
-    const totalSkipped = duplicatesInPayload.length + duplicatesInDB.length;
-
-    // Step 6️⃣ — Return the categorized response
-    return res.status(201).json({
-      ok: newLeads.length > 0, // True if at least one was inserted
-      message: `${inserted.length} new leads added, ${totalSkipped} skipped.`,
-      insertedCount: inserted.length,
-      skippedCount: totalSkipped,
-
-      // 🔹 The categorized skipped lists:
-      duplicatesInPayload: duplicatesInPayload,
-      duplicatesInDB: duplicatesInDB,
-    });
-  } catch (error) {
-    console.error("createLead error:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const createSingleLead = async (req, res) => {
-  console.log(req.body);
-  try {
-    const result = await lead.insertOne(req.body);
-    res.status(201).json(result);
-  } catch (error) { 
-    res.status(400).json({ error: error.message });
-  }
-};
-
-export const updateSingleCreatedLead = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await lead.findByIdAndUpdate(
-      id,
-      req.body,
-      {
-        new: true, // return updated document
-        runValidators: true, // apply schema validation
-      }
-    );
-
-    if (!result) {
-      return res.status(404).json({
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      res.status(400).json({
         success: false,
-        message: "Lead not found",
+        error: error.message,
       });
     }
+  };
 
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-};
+  export const getAllLeads = async (req, res) => {
+    try {
+      console.log("hit");
 
-export const getAllLeads = async (req, res) => {
-  try {
-    console.log("hit");
+      const {
+        status,
+        course,
+        search,
+        sort,
+        interstedSeminar,
+        limit,
+        currentPage,
+        createdBy,
+        assignTo,
+        leadStatus,
+        stage,
+        assignDate,
+        paymentMode,
+        assignStartDate,
+        assignEndDate,
+        paymentStartDate,
+        paymentEndDate,
+        showOnlyFollowups,
+        followUpDate,
+        showOnlyMissedFollowUps,
+        showOnlyMissedPayments,
+        fields,
+        lock,
+        leadSource,
+        upcomingPaymentsDate,
+        missedFollowUpDate,
+      } = req.query;
 
-    const {
-      status,
-      course,
-      search,
-      sort,
-      interstedSeminar,
-      limit,
-      currentPage,
-      createdBy,
-      assignTo,
-      leadStatus,
-      stage,
-      assignDate,
-      paymentMode,
-      assignStartDate,
-      assignEndDate,
-      paymentStartDate,
-      paymentEndDate,
-      showOnlyFollowups,
-      followUpDate,
-      showOnlyMissedFollowUps,
-      showOnlyMissedPayments,
-      fields,
-      lock,
-      leadSource,
-      upcomingPaymentsDate,
-      missedFollowUpDate,
-    } = req.query;
+      // console.log(
+      //   showOnlyFollowups,
+      //   status,
+      //   course,
+      //   search,
+      //   sort,
+      //   limit,
+      //   currentPage,
+      //   createdBy,
+      //   assignTo,
+      // );
 
-    // console.log(
-    //   showOnlyFollowups,
-    //   status,
-    //   course,
-    //   search,
-    //   sort,
-    //   limit,
-    //   currentPage,
-    //   createdBy,
-    //   assignTo,
-    // );
+      const assignStartDateFormat = new Date(assignStartDate);
+      const assignEndDateFormat = new Date(assignEndDate);
+      const paymentStartDateFormat = new Date(paymentStartDate);
 
-    const assignStartDateFormat = new Date(assignStartDate);
-    const assignEndDateFormat = new Date(assignEndDate);
-    const paymentStartDateFormat = new Date(paymentStartDate);
-
-    const paymentEndDateFormat = new Date(paymentEndDate);
-    // If it is midnight of Bangladesh Standard Time (18:00 UTC), set it to the end of that day (17:59:59 UTC)
-    if (paymentEndDateFormat.getUTCHours() === 18) {
-      paymentEndDateFormat.setUTCDate(paymentEndDateFormat.getUTCDate() + 1);
-      paymentEndDateFormat.setUTCHours(17, 59, 59, 999);
-    } else {
-      // Fallback for UTC midnight
-      paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
-    }
-
-    // console.log(paymentEndDateFormat);
-    // console.log(paymentEndDate);
-    // console.log(orderEndDate);
-
-    const filter = {};
-    let sortOption;
-
-    if (status && status !== "All") {
-      filter.assignStatus = status;
-    }
-
-    if (course && course !== "All") {
-      filter.interstedCourse = course;
-    }
-
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (assignTo && assignTo !== "All") {
-      filter.assignTo = assignTo;
-    }
-
-    if (createdBy) {
-      filter.createdBy = createdBy;
-    }
-
-    if (leadStatus && leadStatus !== "All") {
-      if (leadStatus == "Contacted") {
-        filter.leadStatus = { $ne: "Pending" };
+      const paymentEndDateFormat = new Date(paymentEndDate);
+      // If it is midnight of Bangladesh Standard Time (18:00 UTC), set it to the end of that day (17:59:59 UTC)
+      if (paymentEndDateFormat.getUTCHours() === 18) {
+        paymentEndDateFormat.setUTCDate(paymentEndDateFormat.getUTCDate() + 1);
+        paymentEndDateFormat.setUTCHours(17, 59, 59, 999);
       } else {
-        filter.leadStatus = leadStatus;
+        // Fallback for UTC midnight
+        paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
       }
-    }
 
-    if (interstedSeminar && interstedSeminar !== "All") {
-      filter.interstedSeminar = interstedSeminar;
-    }
+      // console.log(paymentEndDateFormat);
+      // console.log(paymentEndDate);
+      // console.log(orderEndDate);
 
-    if (stage && stage !== "All") {
-      if (stage == "Pending") filter.leadStatus = stage;
-      else filter.leadStatus = { $ne: "Pending" };
-    }
+      const filter = {};
+      let sortOption;
 
-    if (assignStartDate && assignEndDate) {
-      // const { start, end } = getDateRange(assignDate, "assign");
-      filter.assignDate = {
-        $gte: assignStartDateFormat,
-        $lte: assignEndDateFormat,
-      };
-    }
-    console.log({ paymentStartDateFormat, paymentEndDateFormat });
+      if (status && status !== "All") {
+        filter.assignStatus = status;
+      }
 
-    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
-      filter.history = {
-        $elemMatch: {
-          date: {
-            $gte: paymentStartDateFormat,
-            $lte: paymentEndDateFormat,
+      if (course && course !== "All") {
+        filter.interstedCourse = course;
+      }
+
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+          { phone: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      if (assignTo && assignTo !== "All") {
+        filter.assignTo = assignTo;
+      }
+
+      if (createdBy) {
+        filter.createdBy = createdBy;
+      }
+
+      if (leadStatus && leadStatus !== "All") {
+        if (leadStatus == "Contacted") {
+          filter.leadStatus = { $ne: "Pending" };
+        } else {
+          filter.leadStatus = leadStatus;
+        }
+      }
+
+      if (interstedSeminar && interstedSeminar !== "All") {
+        filter.interstedSeminar = interstedSeminar;
+      }
+
+      if (stage && stage !== "All") {
+        if (stage == "Pending") filter.leadStatus = stage;
+        else filter.leadStatus = { $ne: "Pending" };
+      }
+
+      if (assignStartDate && assignEndDate) {
+        // const { start, end } = getDateRange(assignDate, "assign");
+        filter.assignDate = {
+          $gte: assignStartDateFormat,
+          $lte: assignEndDateFormat,
+        };
+      }
+      console.log({ paymentStartDateFormat, paymentEndDateFormat });
+
+      if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
+        filter.history = {
+          $elemMatch: {
+            date: {
+              $gte: paymentStartDateFormat,
+              $lte: paymentEndDateFormat,
+            },
           },
-        },
-      };
-    }
+        };
+      }
 
-    if (showOnlyFollowups === "true") {
-      filter.followUpDate = { $exists: true, $ne: null };
-    }
+      if (showOnlyFollowups === "true") {
+        filter.followUpDate = { $exists: true, $ne: null };
+      }
 
-    // For followUpDate (from today → Dec 31)
-    if (followUpDate && followUpDate !== "All") {
-      const { start, end } = getDateRange(followUpDate, "followup");
-      if (start && end) filter.followUpDate = { $gte: start, $lte: end };
-    }
+      // For followUpDate (from today → Dec 31)
+      if (followUpDate && followUpDate !== "All") {
+        const { start, end } = getDateRange(followUpDate, "followup");
+        if (start && end) filter.followUpDate = { $gte: start, $lte: end };
+      }
 
-    if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
-      if (upcomingPaymentsDate === "All") {
-        // If "All" is selected, find all leads with a payment date from today onwards.
+      if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
+        if (upcomingPaymentsDate === "All") {
+          // If "All" is selected, find all leads with a payment date from today onwards.
+          const now = new Date();
+          const localNow = new Date(
+            now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+          );
+          const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
+
+          filter.nextEstimatedPaymentDate = {
+            $exists: true,
+            $gte: startOfToday,
+          };
+        } else {
+          // This handles all other date ranges: "Today", "Next 7 Days", "Pick a date", etc.
+          const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
+          if (start && end) {
+            filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
+          }
+        }
+      }
+
+      if (showOnlyMissedFollowUps === "true") {
         const now = new Date();
-        const localNow = new Date(
+        const bdNow = new Date(
           now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
         );
-        const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
+
+        filter.followUpDate = {
+          $exists: true,
+          $ne: null,
+          $lt: bdNow, // strictly before current date-time
+        };
+      }
+
+      if (showOnlyMissedPayments === "true") {
+        const now = new Date();
+        const bdNow = new Date(
+          now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+        );
 
         filter.nextEstimatedPaymentDate = {
           $exists: true,
-          $gte: startOfToday,
+          $ne: null,
+          $lt: bdNow, // strictly before current date-time
         };
-      } else {
-        // This handles all other date ranges: "Today", "Next 7 Days", "Pick a date", etc.
-        const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
+      }
+
+      if (missedFollowUpDate && missedFollowUpDate !== "All") {
+        const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
         if (start && end) {
-          filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
+          followFilter.$gte = start;
+          followFilter.$lte = end;
         }
       }
-    }
 
-    if (showOnlyMissedFollowUps === "true") {
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
-
-      filter.followUpDate = {
-        $exists: true,
-        $ne: null,
-        $lt: bdNow, // strictly before current date-time
-      };
-    }
-
-    if (showOnlyMissedPayments === "true") {
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
-
-      filter.nextEstimatedPaymentDate = {
-        $exists: true,
-        $ne: null,
-        $lt: bdNow, // strictly before current date-time
-      };
-    }
-
-    if (missedFollowUpDate && missedFollowUpDate !== "All") {
-      const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
-      if (start && end) {
-        followFilter.$gte = start;
-        followFilter.$lte = end;
-      }
-    }
-
-    if (lock && lock !== "All") {
-      filter.isLocked = lock == "Locked" ? true : false;
-    }
-
-    if (leadSource && leadSource !== "All") {
-      filter.leadSource = leadSource;
-    }
-
-    if (sort === "Ascending") {
-      sortOption = { createdAt: 1, _id: 1 };
-    } else if (sort === "Descending") {
-      sortOption = { createdAt: -1, _id: -1 };
-    } else if (sort === "Last Modified") {
-      sortOption = { updatedAt: -1, _id: -1 };
-    } else {
-      // Default (stable, newest first)
-      sortOption = { createdAt: -1, _id: -1 };
-    }
-
-    let projection = null;
-    if (fields === "table") {
-      projection =
-        "_id name email phone address interstedCourse leadStatus assignStatus createdAt isLocked interstedCourseType";
-    }
-
-    console.log(filter);
-
-    const skip = (limit ? limit : 50) * ((currentPage ? currentPage : 1) - 1);
-
-    console.log(status, course, search, sort, limit, currentPage);
-
-    const leadRes = await lead
-      .find(filter, projection)
-      .sort(sortOption)
-      .allowDiskUse()
-      .skip(skip)
-      .limit(limit ? limit : 50)
-      .lean();
-    // console.log(leadRes)
-
-    res.status(200).json(leadRes);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// 4370673  buy one get one
-// 4374122  with discoutn applied
-// 4374060  1 person 3 order
-
-export const getOrderDetails = async (req, res) => {
-  const { searchInput } = req.query;
-
-  try {
-    const credentials = Buffer.from(
-      `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
-    ).toString("base64");
-
-    const response = await axios.get(
-      `https://eshikhon.com.bd/wp-json/wc/v3/orders/${req.params.id}`,
-      {
-        headers: {
-          Authorization: `Basic ${credentials}`,
-        },
-      },
-    );
-
-    const order = response.data;
-
-    // return res.json(order)
-
-    if (!order.line_items || order.line_items.length === 0) {
-      return res
-        .status(404)
-        .send({ message: "No courses found in this order" });
-    }
-
-    // 1. Helper function to clean name and determine type
-    const processItem = (item) => {
-      const rawName = item.name;
-      // Clean name: Remove everything inside and including brackets (e.g., "(Live Course)")
-      const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
-
-      let type = "unknown";
-      if (rawName.toLowerCase().includes("live course")) {
-        type = "Online";
-      } else if (rawName.toLowerCase().includes("offline course")) {
-        type = "Offline";
-      } else if (rawName.toLowerCase().includes("video course")) {
-        type = "video"; // We will use this to filter later
+      if (lock && lock !== "All") {
+        filter.isLocked = lock == "Locked" ? true : false;
       }
 
-      return {
-        originalPrice: parseFloat(item.subtotal),
-        courseName: rawName, // Name as it appears in WooCommerce
-        cleanedName: cleanedName,
-        discount: parseFloat(item.subtotal) - parseFloat(item.total),
-        total: parseFloat(item.total),
-        type: type,
-      };
-    };
-
-    // 2. Process all items and filter out "video" courses
-    const allProcessedItems = order.line_items.map((item) => processItem(item));
-
-    console.log(allProcessedItems);
-    const validItems = allProcessedItems.filter(
-      (item) => item.type !== "video",
-    );
-
-    if (validItems.length === 0) {
-      return res
-        .status(404)
-        .send({ message: "No valid Live or Offline courses found." });
-    }
-
-    // 3. Try to match with searchInput (Normalized)
-    let selectedCourse = null;
-    if (searchInput) {
-      const normalize = (str) =>
-        str
-          .toLowerCase()
-          .replace(/[^\w\s]/g, "")
-          .split(/\s+/)
-          .filter(Boolean);
-
-      const searchWords = normalize(searchInput);
-
-      selectedCourse = validItems.find((item) => {
-        const courseWords = normalize(item.cleanedName);
-
-        const matchedCount = courseWords.filter((word) =>
-          searchWords.includes(word),
-        ).length;
-
-        // % of course words found
-        return matchedCount / courseWords.length >= 0.7;
-      });
-    }
-
-    console.log(searchInput);
-    console.log(selectedCourse);
-
-    // 4. Fallback: If no match, pick the one with the highest subtotal
-    if (!selectedCourse) {
-      selectedCourse = validItems.reduce((prev, current) => {
-        return prev.originalPrice > current.originalPrice ? prev : current;
-      });
-    }
-
-    // 5. Final structure as requested
-    const result = {
-      originalPrice: selectedCourse.originalPrice.toFixed(2),
-      courseName: selectedCourse.courseName,
-      discount: selectedCourse.discount.toFixed(2),
-      total: selectedCourse.total.toFixed(2),
-      type: selectedCourse.type,
-    };
-
-    res.send(result);
-  } catch (error) {
-    console.log(error.message?.response?.data);
-    console.log(error?.response?.data || error?.response?.message);
-    res
-      .status(500)
-      .send(error.response?.data || { message: "Internal Server Error" });
-  }
-};
-
-export const getLeadSources = async (req, res) => {
-  try {
-    console.log("hit /getLeadSources");
-
-    const sources = await lead.aggregate([
-      {
-        $match: {
-          leadSource: { $exists: true, $ne: null, $ne: "" },
-        },
-      },
-      {
-        $group: {
-          _id: "$leadSource",
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          leadSource: "$_id",
-        },
-      },
-    ]);
-
-    // Extract array of strings
-    const uniqueSources = sources.map((item) => item.leadSource);
-
-    res.status(200).json(uniqueSources);
-  } catch (error) {
-    console.error("Error fetching lead sources:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getInterestedCourses = async (req, res) => {
-  try {
-    console.log("hit /getInterestedCourses");
-
-    const { agentEmail } = req.query;
-
-    const leadMatch = {
-      interstedCourse: {
-        $exists: true,
-        $nin: [null, "", "not provided"]
+      if (leadSource && leadSource !== "All") {
+        filter.leadSource = leadSource;
       }
-    };
 
-    // Filter only leads assigned to this agent
-    if (agentEmail) {
-      leadMatch.assignTo = agentEmail.toLowerCase();
+      if (sort === "Ascending") {
+        sortOption = { createdAt: 1, _id: 1 };
+      } else if (sort === "Descending") {
+        sortOption = { createdAt: -1, _id: -1 };
+      } else if (sort === "Last Modified") {
+        sortOption = { updatedAt: -1, _id: -1 };
+      } else {
+        // Default (stable, newest first)
+        sortOption = { createdAt: -1, _id: -1 };
+      }
+
+      let projection = null;
+      if (fields === "table") {
+        projection =
+          "_id name email phone address interstedCourse leadStatus assignStatus createdAt isLocked interstedCourseType";
+      }
+
+      console.log(filter);
+
+      const skip = (limit ? limit : 50) * ((currentPage ? currentPage : 1) - 1);
+
+      console.log(status, course, search, sort, limit, currentPage);
+
+      const leadRes = await lead
+        .find(filter, projection)
+        .sort(sortOption)
+        .allowDiskUse()
+        .skip(skip)
+        .limit(limit ? limit : 50)
+        .lean();
+      // console.log(leadRes)
+
+      res.status(200).json(leadRes);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
     }
+  };
 
-    const [leadCourses, dbCourses] = await Promise.all([
-      lead.aggregate([
+  // 4370673  buy one get one
+  // 4374122  with discoutn applied
+  // 4374060  1 person 3 order
+
+  export const getOrderDetails = async (req, res) => {
+    const { searchInput } = req.query;
+
+    try {
+      const credentials = Buffer.from(
+        `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
+      ).toString("base64");
+
+      const response = await axios.get(
+        `https://eshikhon.com.bd/wp-json/wc/v3/orders/${req.params.id}`,
         {
-          $match: leadMatch
+          headers: {
+            Authorization: `Basic ${credentials}`,
+          },
+        },
+      );
+
+      const order = response.data;
+
+      // return res.json(order)
+
+      if (!order.line_items || order.line_items.length === 0) {
+        return res
+          .status(404)
+          .send({ message: "No courses found in this order" });
+      }
+
+      // 1. Helper function to clean name and determine type
+      const processItem = (item) => {
+        const rawName = item.name;
+        // Clean name: Remove everything inside and including brackets (e.g., "(Live Course)")
+        const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
+
+        let type = "unknown";
+        if (rawName.toLowerCase().includes("live course")) {
+          type = "Online";
+        } else if (rawName.toLowerCase().includes("offline course")) {
+          type = "Offline";
+        } else if (rawName.toLowerCase().includes("video course")) {
+          type = "video"; // We will use this to filter later
+        }
+
+        return {
+          originalPrice: parseFloat(item.subtotal),
+          courseName: rawName, // Name as it appears in WooCommerce
+          cleanedName: cleanedName,
+          discount: parseFloat(item.subtotal) - parseFloat(item.total),
+          total: parseFloat(item.total),
+          type: type,
+        };
+      };
+
+      // 2. Process all items and filter out "video" courses
+      const allProcessedItems = order.line_items.map((item) => processItem(item));
+
+      console.log(allProcessedItems);
+      const validItems = allProcessedItems.filter(
+        (item) => item.type !== "video",
+      );
+
+      if (validItems.length === 0) {
+        return res
+          .status(404)
+          .send({ message: "No valid Live or Offline courses found." });
+      }
+
+      // 3. Try to match with searchInput (Normalized)
+      let selectedCourse = null;
+      if (searchInput) {
+        const normalize = (str) =>
+          str
+            .toLowerCase()
+            .replace(/[^\w\s]/g, "")
+            .split(/\s+/)
+            .filter(Boolean);
+
+        const searchWords = normalize(searchInput);
+
+        selectedCourse = validItems.find((item) => {
+          const courseWords = normalize(item.cleanedName);
+
+          const matchedCount = courseWords.filter((word) =>
+            searchWords.includes(word),
+          ).length;
+
+          // % of course words found
+          return matchedCount / courseWords.length >= 0.7;
+        });
+      }
+
+      console.log(searchInput);
+      console.log(selectedCourse);
+
+      // 4. Fallback: If no match, pick the one with the highest subtotal
+      if (!selectedCourse) {
+        selectedCourse = validItems.reduce((prev, current) => {
+          return prev.originalPrice > current.originalPrice ? prev : current;
+        });
+      }
+
+      // 5. Final structure as requested
+      const result = {
+        originalPrice: selectedCourse.originalPrice.toFixed(2),
+        courseName: selectedCourse.courseName,
+        discount: selectedCourse.discount.toFixed(2),
+        total: selectedCourse.total.toFixed(2),
+        type: selectedCourse.type,
+      };
+
+      res.send(result);
+    } catch (error) {
+      console.log(error.message?.response?.data);
+      console.log(error?.response?.data || error?.response?.message);
+      res
+        .status(500)
+        .send(error.response?.data || { message: "Internal Server Error" });
+    }
+  };
+
+  export const getLeadSources = async (req, res) => {
+    try {
+      console.log("hit /getLeadSources");
+
+      const sources = await lead.aggregate([
+        {
+          $match: {
+            leadSource: { $exists: true, $ne: null, $ne: "" },
+          },
         },
         {
           $group: {
-            _id: "$interstedCourse"
-          }
+            _id: "$leadSource",
+          },
         },
         {
           $project: {
             _id: 0,
-            name: "$_id"
-          }
-        }
-      ]),
-
-      course.find({}, { name: 1, _id: 0 })
-    ]);
-
-    const leadCourseNames = leadCourses.map(item => item.name);
-    const dbCourseNames = dbCourses.map(item => item.name);
-
-    const uniqueCourses = [
-      ...new Set([
-        ...leadCourseNames,
-        ...dbCourseNames
-      ])
-    ];
-
-    uniqueCourses.sort();
-
-    res.status(200).json(uniqueCourses);
-
-  } catch (error) {
-    console.error("Error fetching course filters:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getLeadsCount = async (req, res) => {
-  try {
-    console.log("hit getLeadsCount");
-
-    const {
-      status,
-      course,
-      search,
-      createdBy,
-      assignTo,
-      leadStatus,
-      stage,
-      assignDate,
-      paymentMode,
-      assignStartDate,
-      assignEndDate,
-      paymentStartDate,
-      paymentEndDate,
-      showOnlyFollowups,
-      followUpDate,
-      showOnlyMissedFollowUps,
-      missedFollowUpDate,
-      // Added missing params
-      interstedSeminar,
-      lock,
-      leadSource,
-      upcomingPaymentsDate,
-    } = req.query;
-
-    const filter = {};
-    const assignStartDateFormat = new Date(assignStartDate);
-    const assignEndDateFormat = new Date(assignEndDate);
-    const paymentStartDateFormat = new Date(paymentStartDate);
-    const paymentEndDateFormat = new Date(paymentEndDate);
-
-    // 1. Status
-    if (status && status !== "All") {
-      filter.assignStatus = status;
-    }
-
-    // 2. Course
-    if (course && course !== "All") {
-      filter.interstedCourse = course;
-    }
-
-    // 3. Search
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    // 4. AssignTo (FIXED: Added check for "All")
-    if (assignTo && assignTo !== "All") {
-      filter.assignTo = assignTo;
-    }
-
-    // 5. CreatedBy
-    if (createdBy) {
-      filter.createdBy = createdBy;
-    }
-
-    // 6. LeadStatus
-    if (leadStatus && leadStatus !== "All") {
-      filter.leadStatus = leadStatus;
-    }
-
-    // 7. Seminar (ADDED)
-    if (interstedSeminar && interstedSeminar !== "All") {
-      filter.interstedSeminar = interstedSeminar;
-    }
-
-    // 8. Stage
-    if (stage && stage !== "All") {
-      if (stage === "Pending") filter.leadStatus = stage;
-      else filter.leadStatus = { $ne: "Pending" };
-    }
-
-    // 9. AssignDate
-    if (assignStartDate && assignEndDate) {
-      // const { start, end } = getDateRange(assignDate, "assign");
-      filter.assignDate = {
-        $gte: assignStartDateFormat,
-        $lte: assignEndDateFormat,
-      };
-    }
-
-    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
-      filter.history = {
-        $elemMatch: {
-          date: {
-            $gte: paymentStartDateFormat,
-            $lte: paymentEndDateFormat,
+            leadSource: "$_id",
           },
         },
+      ]);
+
+      // Extract array of strings
+      const uniqueSources = sources.map((item) => item.leadSource);
+
+      res.status(200).json(uniqueSources);
+    } catch (error) {
+      console.error("Error fetching lead sources:", error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  export const getInterestedCourses = async (req, res) => {
+    try {
+      console.log("hit /getInterestedCourses");
+
+      const { agentEmail } = req.query;
+
+      const leadMatch = {
+        interstedCourse: {
+          $exists: true,
+          $nin: [null, "", "not provided"]
+        }
       };
-    }
 
-    // 10. Follow Ups Existence
-    if (showOnlyFollowups === "true") {
-      filter.followUpDate = { $exists: true, $ne: null };
-    }
+      // Filter only leads assigned to this agent
+      if (agentEmail) {
+        leadMatch.assignTo = agentEmail.toLowerCase();
+      }
 
-    // 11. Follow Up Date Range
-    if (followUpDate && followUpDate !== "All") {
-      const { start, end } = getDateRange(followUpDate, "followup");
-      if (start && end) filter.followUpDate = { $gte: start, $lte: end };
-    }
+      const [leadCourses, dbCourses] = await Promise.all([
+        lead.aggregate([
+          {
+            $match: leadMatch
+          },
+          {
+            $group: {
+              _id: "$interstedCourse"
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              name: "$_id"
+            }
+          }
+        ]),
 
-    // 12. Upcoming Payments (ADDED)
-    if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
-      if (upcomingPaymentsDate === "All") {
+        course.find({}, { name: 1, _id: 0 })
+      ]);
+
+      const leadCourseNames = leadCourses.map(item => item.name);
+      const dbCourseNames = dbCourses.map(item => item.name);
+
+      const uniqueCourses = [
+        ...new Set([
+          ...leadCourseNames,
+          ...dbCourseNames
+        ])
+      ];
+
+      uniqueCourses.sort();
+
+      res.status(200).json(uniqueCourses);
+
+    } catch (error) {
+      console.error("Error fetching course filters:", error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  export const getLeadsCount = async (req, res) => {
+    try {
+      console.log("hit getLeadsCount");
+
+      const {
+        status,
+        course,
+        search,
+        createdBy,
+        assignTo,
+        leadStatus,
+        stage,
+        assignDate,
+        paymentMode,
+        assignStartDate,
+        assignEndDate,
+        paymentStartDate,
+        paymentEndDate,
+        showOnlyFollowups,
+        followUpDate,
+        showOnlyMissedFollowUps,
+        missedFollowUpDate,
+        // Added missing params
+        interstedSeminar,
+        lock,
+        leadSource,
+        upcomingPaymentsDate,
+      } = req.query;
+
+      const filter = {};
+      const assignStartDateFormat = new Date(assignStartDate);
+      const assignEndDateFormat = new Date(assignEndDate);
+      const paymentStartDateFormat = new Date(paymentStartDate);
+      const paymentEndDateFormat = new Date(paymentEndDate);
+
+      // 1. Status
+      if (status && status !== "All") {
+        filter.assignStatus = status;
+      }
+
+      // 2. Course
+      if (course && course !== "All") {
+        filter.interstedCourse = course;
+      }
+
+      // 3. Search
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+          { phone: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      // 4. AssignTo (FIXED: Added check for "All")
+      if (assignTo && assignTo !== "All") {
+        filter.assignTo = assignTo;
+      }
+
+      // 5. CreatedBy
+      if (createdBy) {
+        filter.createdBy = createdBy;
+      }
+
+      // 6. LeadStatus
+      if (leadStatus && leadStatus !== "All") {
+        filter.leadStatus = leadStatus;
+      }
+
+      // 7. Seminar (ADDED)
+      if (interstedSeminar && interstedSeminar !== "All") {
+        filter.interstedSeminar = interstedSeminar;
+      }
+
+      // 8. Stage
+      if (stage && stage !== "All") {
+        if (stage === "Pending") filter.leadStatus = stage;
+        else filter.leadStatus = { $ne: "Pending" };
+      }
+
+      // 9. AssignDate
+      if (assignStartDate && assignEndDate) {
+        // const { start, end } = getDateRange(assignDate, "assign");
+        filter.assignDate = {
+          $gte: assignStartDateFormat,
+          $lte: assignEndDateFormat,
+        };
+      }
+
+      if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
+        filter.history = {
+          $elemMatch: {
+            date: {
+              $gte: paymentStartDateFormat,
+              $lte: paymentEndDateFormat,
+            },
+          },
+        };
+      }
+
+      // 10. Follow Ups Existence
+      if (showOnlyFollowups === "true") {
+        filter.followUpDate = { $exists: true, $ne: null };
+      }
+
+      // 11. Follow Up Date Range
+      if (followUpDate && followUpDate !== "All") {
+        const { start, end } = getDateRange(followUpDate, "followup");
+        if (start && end) filter.followUpDate = { $gte: start, $lte: end };
+      }
+
+      // 12. Upcoming Payments (ADDED)
+      if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
+        if (upcomingPaymentsDate === "All") {
+          const now = new Date();
+          const localNow = new Date(
+            now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+          );
+          const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
+
+          filter.nextEstimatedPaymentDate = {
+            $exists: true,
+            $gte: startOfToday,
+          };
+        } else {
+          const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
+          if (start && end) {
+            filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
+          }
+        }
+      }
+
+      // 13. Missed Follow Ups Boolean
+      if (showOnlyMissedFollowUps === "true") {
         const now = new Date();
-        const localNow = new Date(
+        const bdNow = new Date(
           now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
         );
-        const startOfToday = new Date(localNow.setHours(0, 0, 0, 0));
 
-        filter.nextEstimatedPaymentDate = {
+        // Use spread to merge if followUpDate already exists from previous filters
+        filter.followUpDate = {
+          ...filter.followUpDate,
           $exists: true,
-          $gte: startOfToday,
+          $ne: null,
+          $lt: bdNow,
         };
-      } else {
-        const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
-        if (start && end) {
-          filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
-        }
-      }
-    }
-
-    // 13. Missed Follow Ups Boolean
-    if (showOnlyMissedFollowUps === "true") {
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
-
-      // Use spread to merge if followUpDate already exists from previous filters
-      filter.followUpDate = {
-        ...filter.followUpDate,
-        $exists: true,
-        $ne: null,
-        $lt: bdNow,
-      };
-    }
-
-    // 14. Missed Follow Up Date (FIXED LOGIC)
-    if (missedFollowUpDate && missedFollowUpDate !== "All") {
-      const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
-
-      filter.followUpDate = {
-        ...filter.followUpDate,
-        $exists: true,
-        $ne: null,
-        $lt: bdNow,
-        ...(start && end ? { $gte: start, $lte: end } : {}),
-      };
-    }
-
-    // 15. Lock (ADDED)
-    if (lock && lock !== "All") {
-      filter.isLocked = lock == "Locked" ? true : false;
-    }
-
-    // 16. Lead Source (ADDED)
-    if (leadSource && leadSource !== "All") {
-      filter.leadSource = leadSource;
-    }
-
-    console.log(filter, "count filter");
-
-    const count = await lead.countDocuments(filter);
-
-    res.status(200).json({ count });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-export const updateLeads = async (req, res) => {
-  try {
-    const { ids } = req.body; // expect an array of lead IDs
-    const updateData = req.body.update; // fields to update
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "No IDs provided" });
-    }
-
-    const result = await lead.updateMany(
-      { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } },
-      { $set: updateData },
-      { runValidators: true },
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: "No leads found" });
-    }
-
-    res.json({
-      message: `${result.modifiedCount} leads updated successfully`,
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-export const updateSingleLead = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const data = req.body;
-
-    console.log(data);
-    const updates = { ...data, lastContacted: Date.now() };
-
-    const leadDoc = await lead.findById(id);
-    if (!leadDoc) return res.status(404).json({ message: "Lead not found" });
-
-    const currentUser = updates.lastModifiedBy || "Unknown User";
-
-    // 1. IGNORE LIST (Expanded to prevent "set paid Amount..." logs)
-    const ignoredFields = [
-      "_id",
-      "createdAt",
-      "updatedAt",
-      "__v",
-      "history",
-      "note",
-      "callCount",
-      "lastContacted",
-      "lastModifiedBy",
-      "enrolledAt",
-      "sourceFileName",
-      "totalPaid",
-      "totalDue",
-      "paidAmount",
-      "paymentDate",
-      "refundAmount",
-      "discountUnit", // <--- Added these so they don't appear in leftovers
-    ];
-
-    // 2. DETECT CHANGES
-    const changedFields = {};
-    for (const key in updates) {
-      if (ignoredFields.includes(key)) continue;
-
-      const oldValue = leadDoc[key];
-      const newValue = updates[key];
-
-      // Date Comparison
-      if (
-        key === "followUpDate" ||
-        key === "assignDate" ||
-        key === "nextEstimatedPaymentDate"
-      ) {
-        const d1 = oldValue
-          ? new Date(oldValue).toISOString().split("T")[0]
-          : null;
-        const d2 = newValue
-          ? new Date(newValue).toISOString().split("T")[0]
-          : null;
-        if (d1 !== d2) {
-          changedFields[key] = { old: d1 || "Not Set", new: d2 || "Not Set" };
-        }
-        continue;
       }
 
-      // Standard Comparison
-      if (newValue !== undefined && oldValue != newValue) {
-        changedFields[key] = { old: oldValue, new: newValue };
+      // 14. Missed Follow Up Date (FIXED LOGIC)
+      if (missedFollowUpDate && missedFollowUpDate !== "All") {
+        const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
+        const now = new Date();
+        const bdNow = new Date(
+          now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+        );
+
+        filter.followUpDate = {
+          ...filter.followUpDate,
+          $exists: true,
+          $ne: null,
+          $lt: bdNow,
+          ...(start && end ? { $gte: start, $lte: end } : {}),
+        };
       }
+
+      // 15. Lock (ADDED)
+      if (lock && lock !== "All") {
+        filter.isLocked = lock == "Locked" ? true : false;
+      }
+
+      // 16. Lead Source (ADDED)
+      if (leadSource && leadSource !== "All") {
+        filter.leadSource = leadSource;
+      }
+
+      console.log(filter, "count filter");
+
+      const count = await lead.countDocuments(filter);
+
+      res.status(200).json({ count });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
     }
+  };
 
-    // ======================================================
-    // 3. STORY FRAGMENTS ACCUMULATOR
-    // ======================================================
-    const storyParts = [];
-    const handledKeys = new Set();
+  export const updateLeads = async (req, res) => {
+    try {
+      const { ids } = req.body; // expect an array of lead IDs
+      const updateData = req.body.update; // fields to update
 
-    // SCENARIO A: ENROLLMENT
-    if (changedFields["leadStatus"] && updates.leadStatus === "Enrolled") {
-      // Smarter Price Logic: Look at updates first, then DB. Prefer Discounted, fallback to Original.
-      const price =
-        updates.discountedPrice ||
-        updates.originalPrice ||
-        leadDoc.discountedPrice ||
-        leadDoc.originalPrice ||
-        0;
-      const paid = Number(updates.paidAmount) || 0;
-      const due = updates.nextEstimatedPaymentDate
-        ? new Date(updates.nextEstimatedPaymentDate).toISOString().split("T")[0]
-        : "N/A";
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "No IDs provided" });
+      }
 
-      storyParts.push(
-        `enrolled the student (Price: ${price}, Paid: ${paid}, Next Due: ${due})`,
+      const result = await lead.updateMany(
+        { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } },
+        { $set: updateData },
+        { runValidators: true },
       );
 
-      // Mark ALL enrollment-related fields as handled so they don't duplicate
-      const enrollmentFields = [
-        "leadStatus",
-        "originalPrice",
-        "discountedPrice",
-        "leadDiscount",
-        "discountSource",
-        "nextEstimatedPaymentDate",
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ message: "No leads found" });
+      }
+
+      res.json({
+        message: `${result.modifiedCount} leads updated successfully`,
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  };
+
+  export const updateSingleLead = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+
+      console.log(data);
+      const updates = { ...data, lastContacted: Date.now() };
+
+      const leadDoc = await lead.findById(id);
+      if (!leadDoc) return res.status(404).json({ message: "Lead not found" });
+
+      const currentUser = updates.lastModifiedBy || "Unknown User";
+
+      // 1. IGNORE LIST (Expanded to prevent "set paid Amount..." logs)
+      const ignoredFields = [
+        "_id",
+        "createdAt",
+        "updatedAt",
+        "__v",
+        "history",
+        "note",
+        "callCount",
+        "lastContacted",
+        "lastModifiedBy",
         "enrolledAt",
-        "discountUnit",
-        "discountPercent",
+        "sourceFileName",
+        "totalPaid",
+        "totalDue",
+        "paidAmount",
+        "paymentDate",
+        "refundAmount",
+        "discountUnit", // <--- Added these so they don't appear in leftovers
       ];
-      enrollmentFields.forEach((k) => handledKeys.add(k));
-    }
 
-    // SCENARIO B: REFUND
-    else if (changedFields["leadStatus"] && updates.leadStatus === "Refunded") {
-      const refAmt = updates.refundAmount || 0;
-      storyParts.push(
-        `marked lead as Refunded and processed refund of ${refAmt}`,
-      );
-      handledKeys.add("leadStatus");
-      handledKeys.add("refundAmount"); // Technically ignored in loop, but good safety
-    }
+      // 2. DETECT CHANGES
+      const changedFields = {};
+      for (const key in updates) {
+        if (ignoredFields.includes(key)) continue;
 
-    // SCENARIO C: PAYMENT ONLY
-    const incomingPayment = Number(updates.paidAmount);
-    if (incomingPayment > 0 && updates.leadStatus !== "Enrolled") {
-      storyParts.push(`received a payment of ${incomingPayment}`);
-    }
+        const oldValue = leadDoc[key];
+        const newValue = updates[key];
 
-    // SCENARIO D: STATUS + FOLLOW UP
-    if (changedFields["leadStatus"] && changedFields["followUpDate"]) {
-      const newStatus = changedFields["leadStatus"].new;
-      const newDate = changedFields["followUpDate"].new;
-      storyParts.push(
-        `changed status to "${newStatus}" and set follow-up for ${newDate}`,
-      );
+        // Date Comparison
+        if (
+          key === "followUpDate" ||
+          key === "assignDate" ||
+          key === "nextEstimatedPaymentDate"
+        ) {
+          const d1 = oldValue
+            ? new Date(oldValue).toISOString().split("T")[0]
+            : null;
+          const d2 = newValue
+            ? new Date(newValue).toISOString().split("T")[0]
+            : null;
+          if (d1 !== d2) {
+            changedFields[key] = { old: d1 || "Not Set", new: d2 || "Not Set" };
+          }
+          continue;
+        }
 
-      handledKeys.add("leadStatus");
-      handledKeys.add("followUpDate");
-    }
+        // Standard Comparison
+        if (newValue !== undefined && oldValue != newValue) {
+          changedFields[key] = { old: oldValue, new: newValue };
+        }
+      }
 
-    // SCENARIO E: LEFTOVERS
-    for (const key in changedFields) {
-      if (handledKeys.has(key)) continue;
+      // ======================================================
+      // 3. STORY FRAGMENTS ACCUMULATOR
+      // ======================================================
+      const storyParts = [];
+      const handledKeys = new Set();
 
-      const { old: oldVal, new: newVal } = changedFields[key];
-      const readableKey = key.replace(/([A-Z])/g, " $1").trim();
+      // SCENARIO A: ENROLLMENT
+      if (changedFields["leadStatus"] && updates.leadStatus === "Enrolled") {
+        // Smarter Price Logic: Look at updates first, then DB. Prefer Discounted, fallback to Original.
+        const price =
+          updates.discountedPrice ||
+          updates.originalPrice ||
+          leadDoc.discountedPrice ||
+          leadDoc.originalPrice ||
+          0;
+        const paid = Number(updates.paidAmount) || 0;
+        const due = updates.nextEstimatedPaymentDate
+          ? new Date(updates.nextEstimatedPaymentDate).toISOString().split("T")[0]
+          : "N/A";
 
-      if (!oldVal || oldVal === "Not Set") {
-        storyParts.push(`set ${readableKey} to "${newVal}"`);
-      } else {
         storyParts.push(
-          `changed ${readableKey} from "${oldVal}" to "${newVal}"`,
+          `enrolled the student (Price: ${price}, Paid: ${paid}, Next Due: ${due})`,
         );
+
+        // Mark ALL enrollment-related fields as handled so they don't duplicate
+        const enrollmentFields = [
+          "leadStatus",
+          "originalPrice",
+          "discountedPrice",
+          "leadDiscount",
+          "discountSource",
+          "nextEstimatedPaymentDate",
+          "enrolledAt",
+          "discountUnit",
+          "discountPercent",
+        ];
+        enrollmentFields.forEach((k) => handledKeys.add(k));
       }
+
+      // SCENARIO B: REFUND
+      else if (changedFields["leadStatus"] && updates.leadStatus === "Refunded") {
+        const refAmt = updates.refundAmount || 0;
+        storyParts.push(
+          `marked lead as Refunded and processed refund of ${refAmt}`,
+        );
+        handledKeys.add("leadStatus");
+        handledKeys.add("refundAmount"); // Technically ignored in loop, but good safety
+      }
+
+      // SCENARIO C: PAYMENT ONLY
+      const incomingPayment = Number(updates.paidAmount);
+      if (incomingPayment > 0 && updates.leadStatus !== "Enrolled") {
+        storyParts.push(`received a payment of ${incomingPayment}`);
+      }
+
+      // SCENARIO D: STATUS + FOLLOW UP
+      if (changedFields["leadStatus"] && changedFields["followUpDate"]) {
+        const newStatus = changedFields["leadStatus"].new;
+        const newDate = changedFields["followUpDate"].new;
+        storyParts.push(
+          `changed status to "${newStatus}" and set follow-up for ${newDate}`,
+        );
+
+        handledKeys.add("leadStatus");
+        handledKeys.add("followUpDate");
+      }
+
+      // SCENARIO E: LEFTOVERS
+      for (const key in changedFields) {
+        if (handledKeys.has(key)) continue;
+
+        const { old: oldVal, new: newVal } = changedFields[key];
+        const readableKey = key.replace(/([A-Z])/g, " $1").trim();
+
+        if (!oldVal || oldVal === "Not Set") {
+          storyParts.push(`set ${readableKey} to "${newVal}"`);
+        } else {
+          storyParts.push(
+            `changed ${readableKey} from "${oldVal}" to "${newVal}"`,
+          );
+        }
+      }
+
+      // ======================================================
+      // 4. GENERATE THE SINGLE NOTE
+      // ======================================================
+      if (storyParts.length > 0) {
+        const finalMessage = `${storyParts.join(".\n\n")}.`;
+        leadDoc.note.push({
+          text: finalMessage,
+          by: currentUser,
+        });
+      }
+
+      // ======================================================
+      // 5. APPLY UPDATES TO DB
+      // ======================================================
+      for (const key in updates) {
+        if (key === "note" || key === "paidAmount") continue;
+        leadDoc[key] = updates[key];
+      }
+
+      if (incomingPayment > 0) {
+        // Check if frontend sent a date, otherwise use current time
+        const txDate = updates.paymentDate
+          ? new Date(updates.paymentDate)
+          : new Date();
+
+        const paymentEntry = {
+          paidAmount: incomingPayment,
+          date: txDate, // <--- Use the variable here
+        };
+
+        leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
+        leadDoc.history.push(paymentEntry);
+
+        // Optional: If you want to sort history by date after adding manual dates
+        // leadDoc.history.sort((a, b) => new Date(a.date) - new Date(b.date));
+      }
+
+      if (updates.note && updates.note.length > 0) {
+        const manualNotes = updates.note.map((n) => ({
+          text: typeof n === "string" ? n : n.text,
+          by: currentUser,
+        }));
+        leadDoc.note.push(...manualNotes);
+      }
+
+      const savedLead = await leadDoc.save();
+      res.json(savedLead);
+    } catch (e) {
+      console.error("Update Lead Error:", e);
+      res.status(500).json({ message: e.message });
     }
+  };
 
-    // ======================================================
-    // 4. GENERATE THE SINGLE NOTE
-    // ======================================================
-    if (storyParts.length > 0) {
-      const finalMessage = `${storyParts.join(".\n\n")}.`;
-      leadDoc.note.push({
-        text: finalMessage,
-        by: currentUser,
-      });
-    }
-
-    // ======================================================
-    // 5. APPLY UPDATES TO DB
-    // ======================================================
-    for (const key in updates) {
-      if (key === "note" || key === "paidAmount") continue;
-      leadDoc[key] = updates[key];
-    }
-
-    if (incomingPayment > 0) {
-      // Check if frontend sent a date, otherwise use current time
-      const txDate = updates.paymentDate
-        ? new Date(updates.paymentDate)
-        : new Date();
-
-      const paymentEntry = {
-        paidAmount: incomingPayment,
-        date: txDate, // <--- Use the variable here
-      };
-
-      leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
-      leadDoc.history.push(paymentEntry);
-
-      // Optional: If you want to sort history by date after adding manual dates
-      // leadDoc.history.sort((a, b) => new Date(a.date) - new Date(b.date));
-    }
-
-    if (updates.note && updates.note.length > 0) {
-      const manualNotes = updates.note.map((n) => ({
-        text: typeof n === "string" ? n : n.text,
-        by: currentUser,
-      }));
-      leadDoc.note.push(...manualNotes);
-    }
-
-    const savedLead = await leadDoc.save();
-    res.json(savedLead);
-  } catch (e) {
-    console.error("Update Lead Error:", e);
-    res.status(500).json({ message: e.message });
-  }
-};
-
-function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
-  const now = new Date();
-  const localNow = new Date(now.toLocaleString("en-US", { timeZone: tz }));
-
-  let start, end;
-
-  // ------------------------
-  // Assign Date filters
-  // ------------------------
-  if (type === "Today") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(localNow.setHours(23, 59, 59, 999));
-  }
-
-  if (type === "This Week") {
-    const day = localNow.getDay(); // 0=Sunday … 6=Saturday
-    const diff = (day + 1) % 7; // Saturday = 0
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
-
-    end = new Date(start);
-    end.setDate(start.getDate() + 6); // Friday
-    end.setHours(23, 59, 59, 999);
-  }
-
-  if (type === "This Month") {
-    start = new Date(localNow.getFullYear(), localNow.getMonth(), 1);
-    end = new Date(
-      localNow.getFullYear(),
-      localNow.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
-  }
-
-  if (type === "This Year") {
-    if (mode === "assign") {
-      // full calendar year
-      start = new Date(localNow.getFullYear(), 0, 1);
-    } else {
-      // followup mode = from today to end of year
-      start = new Date(localNow.setHours(0, 0, 0, 0));
-    }
-    end = new Date(localNow.getFullYear(), 11, 31, 23, 59, 59, 999);
-  }
-
-  // ------------------------
-  // Follow-up filters
-  // ------------------------
-  if (type === "Next 3 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 3);
-    end.setHours(23, 59, 59, 999);
-  }
-
-  if (type === "Next 7 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 7);
-    end.setHours(23, 59, 59, 999);
-  }
-
-  if (type === "Next 30 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 30);
-    end.setHours(23, 59, 59, 999);
-  }
-
-  // ------------------------
-  // LAST ranges
-  // ------------------------
-  if (type === "Last 3 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 3);
-    start.setHours(0, 0, 0, 0);
-
-    end = new Date(localNow.setHours(23, 59, 59, 999));
-  }
-
-  if (type === "Last 7 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 7);
-    start.setHours(0, 0, 0, 0);
-
-    end = new Date(localNow.setHours(23, 59, 59, 999));
-  }
-
-  if (type === "Last 30 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 30);
-    start.setHours(0, 0, 0, 0);
-
-    end = new Date(localNow.setHours(23, 59, 59, 999));
-  }
-
-  // ------------------------
-  // Custom single date (dd/mm/yyyy OR yyyy-mm-dd)
-  // ------------------------
-  if (type.includes("/")) {
-    const [dd, mm, yyyy] = type.split("/");
-    start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-    end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
-  }
-
-  if (type.includes("-")) {
-    const [yyyy, mm, dd] = type.split("-");
-    start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-    end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
-  }
-
-  return { start, end };
-}
-
-const cleanEmail = (raw) => {
-  if (!raw) return null;
-  const m = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return m ? m[0].toLowerCase().trim() : null;
-};
-
-const phoneEndings = (raw) => {
-  // robust endings for international: last 10/9/8 of digits (drop leading 00 / 0)
-  const digits = String(raw ?? "")
-    .replace(/\D+/g, "")
-    .replace(/^00/, "");
-  const drop0 = digits.replace(/^0+/, "");
-  const out = new Set();
-  for (const s of [digits, drop0]) {
-    if (s.length >= 10) out.add(s.slice(-10));
-    if (s.length >= 9) out.add(s.slice(-9));
-    if (s.length >= 8) out.add(s.slice(-8));
-  }
-  return [...out];
-};
-
-export const markJoinedFromAttendance = async (req, res) => {
-  try {
-    let rows = req.body;
-    console.log("hit");
-    console.log(req.body);
-    if (!Array.isArray(rows)) rows = [rows];
-
-    // collect unique identifiers
-    const emails = new Set();
-    const endings = new Set();
-
-    for (const r of rows) {
-      const em = cleanEmail(r?.email);
-      if (em) emails.add(em);
-      for (const e of phoneEndings(r?.phone)) endings.add(e);
-    }
-
-    if (!emails.size && !endings.size) {
-      return res.json({
-        matchedCandidates: 0,
-        updated: 0,
-        reason: "No valid email/phone found",
-      });
-    }
-
-    const BULK_STATUS = "Joined on seminar";
+  function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
     const now = new Date();
-    const updatedIds = new Set();
-    const touched = [];
+    const localNow = new Date(now.toLocaleString("en-US", { timeZone: tz }));
 
-    // 1) emails: update only the LATEST per email
-    for (const em of emails) {
-      const latest = await lead
-        .findOne({ email: em })
-        .sort({ createdAt: -1, _id: -1 })
-        .select("_id leadStatus")
-        .lean();
-      if (!latest) continue;
-      if (
-        latest.leadStatus !== BULK_STATUS &&
-        !updatedIds.has(String(latest._id))
-      ) {
-        await lead.updateOne(
-          { _id: latest._id },
-          {
-            $set: { leadStatus: BULK_STATUS, lastContacted: now },
-            $push: {
-              note: {
-                text: `Auto-marked as "Joined on seminar" from attendance (${em})`,
-                createdAt: now,
+    let start, end;
+
+    // ------------------------
+    // Assign Date filters
+    // ------------------------
+    if (type === "Today") {
+      start = new Date(localNow.setHours(0, 0, 0, 0));
+      end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    if (type === "This Week") {
+      const day = localNow.getDay(); // 0=Sunday … 6=Saturday
+      const diff = (day + 1) % 7; // Saturday = 0
+      start = new Date(localNow);
+      start.setDate(localNow.getDate() - diff);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(start);
+      end.setDate(start.getDate() + 6); // Friday
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (type === "This Month") {
+      start = new Date(localNow.getFullYear(), localNow.getMonth(), 1);
+      end = new Date(
+        localNow.getFullYear(),
+        localNow.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
+    }
+
+    if (type === "This Year") {
+      if (mode === "assign") {
+        // full calendar year
+        start = new Date(localNow.getFullYear(), 0, 1);
+      } else {
+        // followup mode = from today to end of year
+        start = new Date(localNow.setHours(0, 0, 0, 0));
+      }
+      end = new Date(localNow.getFullYear(), 11, 31, 23, 59, 59, 999);
+    }
+
+    // ------------------------
+    // Follow-up filters
+    // ------------------------
+    if (type === "Next 3 Days") {
+      start = new Date(localNow.setHours(0, 0, 0, 0));
+      end = new Date(start);
+      end.setDate(start.getDate() + 3);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (type === "Next 7 Days") {
+      start = new Date(localNow.setHours(0, 0, 0, 0));
+      end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (type === "Next 30 Days") {
+      start = new Date(localNow.setHours(0, 0, 0, 0));
+      end = new Date(start);
+      end.setDate(start.getDate() + 30);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    // ------------------------
+    // LAST ranges
+    // ------------------------
+    if (type === "Last 3 Days") {
+      start = new Date(localNow);
+      start.setDate(localNow.getDate() - 3);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    if (type === "Last 7 Days") {
+      start = new Date(localNow);
+      start.setDate(localNow.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    if (type === "Last 30 Days") {
+      start = new Date(localNow);
+      start.setDate(localNow.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(localNow.setHours(23, 59, 59, 999));
+    }
+
+    // ------------------------
+    // Custom single date (dd/mm/yyyy OR yyyy-mm-dd)
+    // ------------------------
+    if (type.includes("/")) {
+      const [dd, mm, yyyy] = type.split("/");
+      start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+      end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    }
+
+    if (type.includes("-")) {
+      const [yyyy, mm, dd] = type.split("-");
+      start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+      end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    }
+
+    return { start, end };
+  }
+
+  const cleanEmail = (raw) => {
+    if (!raw) return null;
+    const m = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    return m ? m[0].toLowerCase().trim() : null;
+  };
+
+  const phoneEndings = (raw) => {
+    // robust endings for international: last 10/9/8 of digits (drop leading 00 / 0)
+    const digits = String(raw ?? "")
+      .replace(/\D+/g, "")
+      .replace(/^00/, "");
+    const drop0 = digits.replace(/^0+/, "");
+    const out = new Set();
+    for (const s of [digits, drop0]) {
+      if (s.length >= 10) out.add(s.slice(-10));
+      if (s.length >= 9) out.add(s.slice(-9));
+      if (s.length >= 8) out.add(s.slice(-8));
+    }
+    return [...out];
+  };
+
+  export const markJoinedFromAttendance = async (req, res) => {
+    try {
+      let rows = req.body;
+      console.log("hit");
+      console.log(req.body);
+      if (!Array.isArray(rows)) rows = [rows];
+
+      // collect unique identifiers
+      const emails = new Set();
+      const endings = new Set();
+
+      for (const r of rows) {
+        const em = cleanEmail(r?.email);
+        if (em) emails.add(em);
+        for (const e of phoneEndings(r?.phone)) endings.add(e);
+      }
+
+      if (!emails.size && !endings.size) {
+        return res.json({
+          matchedCandidates: 0,
+          updated: 0,
+          reason: "No valid email/phone found",
+        });
+      }
+
+      const BULK_STATUS = "Joined on seminar";
+      const now = new Date();
+      const updatedIds = new Set();
+      const touched = [];
+
+      // 1) emails: update only the LATEST per email
+      for (const em of emails) {
+        const latest = await lead
+          .findOne({ email: em })
+          .sort({ createdAt: -1, _id: -1 })
+          .select("_id leadStatus")
+          .lean();
+        if (!latest) continue;
+        if (
+          latest.leadStatus !== BULK_STATUS &&
+          !updatedIds.has(String(latest._id))
+        ) {
+          await lead.updateOne(
+            { _id: latest._id },
+            {
+              $set: { leadStatus: BULK_STATUS, lastContacted: now },
+              $push: {
+                note: {
+                  text: `Auto-marked as "Joined on seminar" from attendance (${em})`,
+                  createdAt: now,
+                },
               },
             },
-          },
-        );
-        updatedIds.add(String(latest._id));
-        touched.push({ by: "email", key: em, id: String(latest._id) });
+          );
+          updatedIds.add(String(latest._id));
+          touched.push({ by: "email", key: em, id: String(latest._id) });
+        }
       }
-    }
 
-    // 2) phones (endings): update only the LATEST per ending
-    for (const end of endings) {
-      const latest = await lead
-        .findOne({ phone: { $regex: new RegExp(`${end}$`) } })
-        .sort({ createdAt: -1, _id: -1 })
-        .select("_id leadStatus")
-        .lean();
-      if (!latest) continue;
-      if (
-        latest.leadStatus !== BULK_STATUS &&
-        !updatedIds.has(String(latest._id))
-      ) {
-        await lead.updateOne(
-          { _id: latest._id },
-          {
-            $set: { leadStatus: BULK_STATUS, lastContacted: now },
-            $push: {
-              note: {
-                text: `Auto-marked as "Joined on seminar" from attendance (phone *${end})`,
-                createdAt: now,
+      // 2) phones (endings): update only the LATEST per ending
+      for (const end of endings) {
+        const latest = await lead
+          .findOne({ phone: { $regex: new RegExp(`${end}$`) } })
+          .sort({ createdAt: -1, _id: -1 })
+          .select("_id leadStatus")
+          .lean();
+        if (!latest) continue;
+        if (
+          latest.leadStatus !== BULK_STATUS &&
+          !updatedIds.has(String(latest._id))
+        ) {
+          await lead.updateOne(
+            { _id: latest._id },
+            {
+              $set: { leadStatus: BULK_STATUS, lastContacted: now },
+              $push: {
+                note: {
+                  text: `Auto-marked as "Joined on seminar" from attendance (phone *${end})`,
+                  createdAt: now,
+                },
               },
             },
-          },
-        );
-        updatedIds.add(String(latest._id));
-        touched.push({ by: "phone", key: end, id: String(latest._id) });
+          );
+          updatedIds.add(String(latest._id));
+          touched.push({ by: "phone", key: end, id: String(latest._id) });
+        }
       }
+
+      console.log([emails, endings]);
+
+      return res.json({
+        matchedCandidates: emails.size + endings.size,
+        updated: updatedIds.size,
+        touched: touched.slice(0, 10), // sample for quick debug
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
     }
+  };
 
-    console.log([emails, endings]);
+  export const deleteLeads = async (req, res) => {
+    try {
+      // Expect: { ids: ["64f...", "650...", ...] }
+      const { ids } = req.body;
 
-    return res.json({
-      matchedCandidates: emails.size + endings.size,
-      updated: updatedIds.size,
-      touched: touched.slice(0, 10), // sample for quick debug
-    });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-};
+      console.log(ids);
 
-export const deleteLeads = async (req, res) => {
-  try {
-    // Expect: { ids: ["64f...", "650...", ...] }
-    const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "ids (non-empty array) is required" });
+      }
 
-    console.log(ids);
+      // Deduplicate + validate ObjectIds
+      const uniqueIds = [...new Set(ids.map(String))];
+      const validIds = uniqueIds.filter(mongoose.isValidObjectId);
+      const invalidIds = uniqueIds.filter((id) => !mongoose.isValidObjectId(id));
 
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "ids (non-empty array) is required" });
+      console.log(validIds, "validids");
+
+      if (validIds.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "No valid MongoDB ObjectIds provided", invalidIds });
+      }
+
+      // Perform deletion
+      const result = await lead.deleteMany({ _id: { $in: validIds } });
+
+      return res.json({
+        ok: true,
+        requested: uniqueIds.length,
+        attempted: validIds.length,
+        deletedCount: result.deletedCount || 0,
+        invalidIds,
+      });
+    } catch (error) {
+      console.error("deleteLeads error:", error);
+      return res.status(500).json({ error: error.message });
     }
-
-    // Deduplicate + validate ObjectIds
-    const uniqueIds = [...new Set(ids.map(String))];
-    const validIds = uniqueIds.filter(mongoose.isValidObjectId);
-    const invalidIds = uniqueIds.filter((id) => !mongoose.isValidObjectId(id));
-
-    console.log(validIds, "validids");
-
-    if (validIds.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "No valid MongoDB ObjectIds provided", invalidIds });
-    }
-
-    // Perform deletion
-    const result = await lead.deleteMany({ _id: { $in: validIds } });
-
-    return res.json({
-      ok: true,
-      requested: uniqueIds.length,
-      attempted: validIds.length,
-      deletedCount: result.deletedCount || 0,
-      invalidIds,
-    });
-  } catch (error) {
-    console.error("deleteLeads error:", error);
-    return res.status(500).json({ error: error.message });
-  }
-};
+  };

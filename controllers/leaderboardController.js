@@ -633,7 +633,7 @@ export const getAdminLeadStats = async (req, res) => {
               { $gt: ["$individualTargetAmount", 0] },
               {
                 $multiply: [
-                  { $divide: ["$totalSales", "$individualTargetAmount"] },
+                  { $divide: ["$assignedSales", "$individualTargetAmount"] },
                   100,
                 ],
               },
@@ -723,7 +723,7 @@ export const getAdminLeadStats = async (req, res) => {
                 {
                   case: {
                     $and: [
-                      { $gte: ["$completionRate", 40] },
+                      { $gte: ["$completionRate", 41] },
                       { $lte: ["$completionRate", 60] },
                     ],
                   },
@@ -736,7 +736,7 @@ export const getAdminLeadStats = async (req, res) => {
                       { $lte: ["$completionRate", 80] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.015] },
+                  then: { $multiply: ["$assignedSales", 0.0125] },
                 },
                 {
                   case: {
@@ -745,7 +745,7 @@ export const getAdminLeadStats = async (req, res) => {
                       { $lte: ["$completionRate", 90] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.02] },
+                  then: { $multiply: ["$assignedSales", 0.015] },
                 },
                 {
                   case: {
@@ -754,11 +754,11 @@ export const getAdminLeadStats = async (req, res) => {
                       { $lte: ["$completionRate", 100] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.025] },
+                  then: { $multiply: ["$assignedSales", 0.0175] },
                 },
                 {
                   case: { $gt: ["$completionRate", 100] },
-                  then: { $multiply: ["$assignedSales", 0.03] },
+                  then: { $multiply: ["$assignedSales", 0.02] },
                 },
               ],
               default: 0,
@@ -1574,7 +1574,7 @@ export const getAgentleadState = async (req, res) => {
                 {
                   case: {
                     $and: [
-                      { $gte: ["$targetCompletionRate", 40] },
+                      { $gte: ["$targetCompletionRate", 41] },
                       { $lte: ["$targetCompletionRate", 60] },
                     ],
                   },
@@ -1587,7 +1587,7 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 80] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.015] },
+                  then: { $multiply: ["$assignedSales", 0.0125] },
                 },
                 {
                   case: {
@@ -1596,7 +1596,7 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 90] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.02] },
+                  then: { $multiply: ["$assignedSales", 0.015] },
                 },
                 {
                   case: {
@@ -1605,11 +1605,11 @@ export const getAgentleadState = async (req, res) => {
                       { $lte: ["$targetCompletionRate", 100] },
                     ],
                   },
-                  then: { $multiply: ["$assignedSales", 0.025] },
+                  then: { $multiply: ["$assignedSales", 0.0175] },
                 },
                 {
                   case: { $gt: ["$targetCompletionRate", 100] },
-                  then: { $multiply: ["$assignedSales", 0.03] },
+                  then: { $multiply: ["$assignedSales", 0.02] },
                 },
               ],
               default: 0,
