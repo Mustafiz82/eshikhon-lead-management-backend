@@ -110,7 +110,7 @@ const leadSchema = new mongoose.Schema(
     nextEstimatedPaymentDate: {                      // when user might paid later if downpayment happense
       type: Date
     },
-    orderNumber : {type : Number , trim : true}
+    orderNumber : {type : Number , trim : true ,  index: true}
   },
   { timestamps: true }
 );
