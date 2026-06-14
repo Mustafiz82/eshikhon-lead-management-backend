@@ -1346,3 +1346,12 @@ export const deleteLeads = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+
+export const handleOrderCreatedWebhook = (req, res) => {
+  // Print the incoming request body to your terminal
+  console.log("Webhook Payload Received:", req.body);
+  
+  // Send a 200 OK response back to WooCommerce immediately
+  return res.sendStatus(200);
+};

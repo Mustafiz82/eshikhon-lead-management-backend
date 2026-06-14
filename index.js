@@ -11,6 +11,7 @@ import { getLeaderboards } from "./controllers/leaderboardController.js";
 import dashboardRoute from "./routes/dashboard.js";
 import mongoose from "mongoose";
 import paymentRoute from "./routes/paymentRoute.js";
+import { handleOrderCreatedWebhook } from "./controllers/leadController.js";
 
 const app = express()
 
@@ -25,6 +26,7 @@ app.use("/api/dashboard", dashboardRoute)
 app.use("/api/payments", paymentRoute)
 app.post("/api/file", createFileName)
 app.get("/api/file", getAllFileNames)
+app.post("/api/webhook", handleOrderCreatedWebhook)
 
 app.get("/", (req, res) => {
     res.send("Server is running ✅");
