@@ -924,13 +924,13 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
   const baseMatch = {};
   if (email) baseMatch.assignTo = email;
 
-  const pipeline =[
+  const pipeline = [
     { $match: baseMatch },
 
     {
       $facet: {
         // 1) Payments: Split into Agent-Created vs Assigned
-        monthlyPayments:[
+        monthlyPayments: [
           { $unwind: { path: "$history", preserveNullAndEmptyArrays: false } },
           {
             $addFields: {
@@ -940,7 +940,9 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           },
           {
             $addFields: {
-              monthKey: { $dateToString: { format: "%Y-%m", date: "$paymentDateObj" } },
+              monthKey: {
+                $dateToString: { format: "%Y-%m", date: "$paymentDateObj" },
+              },
             },
           },
           {
@@ -948,17 +950,34 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
               _id: { assignTo: "$assignTo", monthKey: "$monthKey" },
               totalPayments: { $sum: "$paidAmountD" },
               agentCreatedPayments: {
-                $sum: { $cond: [{ $eq: ["$creatorRole", "agent"] }, "$paidAmountD", 0] },
+                $sum: {
+                  $cond: [
+                    { $eq: ["$creatorRole", "agent"] },
+                    "$paidAmountD",
+                    0,
+                  ],
+                },
               },
               assignedPayments: {
-                $sum: { $cond: [{ $ne: ["$creatorRole", "agent"] }, "$paidAmountD", 0] },
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ["$creatorRole", "agent"] },
+                        { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                      ],
+                    },
+                    "$paidAmountD",
+                    0,
+                  ],
+                },
               },
             },
           },
         ],
 
         // 2) Refunds: Split into Agent-Created vs Assigned
-        monthlyRefunds:[
+        monthlyRefunds: [
           {
             $match: {
               refundAmount: { $gt: 0 },
@@ -973,7 +992,9 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           },
           {
             $addFields: {
-              monthKey: { $dateToString: { format: "%Y-%m", date: "$enrolledDateObj" } },
+              monthKey: {
+                $dateToString: { format: "%Y-%m", date: "$enrolledDateObj" },
+              },
             },
           },
           {
@@ -981,27 +1002,34 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
               _id: { assignTo: "$assignTo", monthKey: "$monthKey" },
               totalRefunds: { $sum: "$refundD" },
               agentCreatedRefunds: {
-                $sum: { $cond: [{ $eq: ["$creatorRole", "agent"] }, "$refundD", 0] },
+                $sum: {
+                  $cond: [{ $eq: ["$creatorRole", "agent"] }, "$refundD", 0],
+                },
               },
               assignedRefunds: {
-                $sum: { $cond: [{ $ne:["$creatorRole", "agent"] }, "$refundD", 0] },
+                $sum: {
+                  $cond: [{ $ne: ["$creatorRole", "agent"] }, "$refundD", 0],
+                },
               },
             },
           },
         ],
 
         // 3) Base Price: ONLY counts for Assigned Leads
-        monthlyBasePrice:[
+        monthlyBasePrice: [
           { $match: { assignDate: { $exists: true, $ne: null } } },
           {
             $lookup: {
               from: "courses",
               let: { topic: "$interstedCourse", type: "$interstedCourseType" },
-              pipeline:[
+              pipeline: [
                 {
                   $match: {
                     $expr: {
-                      $and: [{ $eq: ["$name", "$$topic"] }, { $eq: ["$type", "$$type"] }],
+                      $and: [
+                        { $eq: ["$name", "$$topic"] },
+                        { $eq: ["$type", "$$type"] },
+                      ],
                     },
                   },
                 },
@@ -1011,7 +1039,9 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
               as: "courseData",
             },
           },
-          { $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true } },
+          {
+            $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true },
+          },
           {
             $addFields: {
               effectivePrice: { $ifNull: ["$courseData.price", 0] },
@@ -1020,7 +1050,9 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           },
           {
             $addFields: {
-              monthKey: { $dateToString: { format: "%Y-%m", date: "$assignDateObj" } },
+              monthKey: {
+                $dateToString: { format: "%Y-%m", date: "$assignDateObj" },
+              },
             },
           },
           {
@@ -1028,15 +1060,19 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
               _id: { assignTo: "$assignTo", monthKey: "$monthKey" },
               basePrice: {
                 $sum: {
-                  $cond: [{ $ne:["$creatorRole", "agent"] }, "$effectivePrice", 0]
-                }
+                  $cond: [
+                    { $ne: ["$creatorRole", "agent"] },
+                    "$effectivePrice",
+                    0,
+                  ],
+                },
               },
             },
           },
         ],
 
         // 4) Agent-Created Lead Count: For Part A Commission Tiers
-        monthlyAgentLeads:[
+        monthlyAgentLeads: [
           {
             $match: {
               creatorRole: "agent",
@@ -1046,12 +1082,19 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           },
           {
             $addFields: {
-              firstPaymentDateObj: { $toDate: { $arrayElemAt: ["$history.date", 0] } },
+              firstPaymentDateObj: {
+                $toDate: { $arrayElemAt: ["$history.date", 0] },
+              },
             },
           },
           {
             $addFields: {
-              monthKey: { $dateToString: { format: "%Y-%m", date: "$firstPaymentDateObj" } },
+              monthKey: {
+                $dateToString: {
+                  format: "%Y-%m",
+                  date: "$firstPaymentDateObj",
+                },
+              },
             },
           },
           {
@@ -1068,7 +1111,7 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
     {
       $project: {
         merged: {
-          $concatArrays:[
+          $concatArrays: [
             {
               $map: {
                 input: "$monthlyPayments",
@@ -1079,8 +1122,11 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
                   totalPayments: "$$p.totalPayments",
                   agentCreatedPayments: "$$p.agentCreatedPayments",
                   assignedPayments: "$$p.assignedPayments",
-                  totalRefunds: 0, agentCreatedRefunds: 0, assignedRefunds: 0,
-                  basePrice: 0, agentCreatedLeadCount: 0,
+                  totalRefunds: 0,
+                  agentCreatedRefunds: 0,
+                  assignedRefunds: 0,
+                  basePrice: 0,
+                  agentCreatedLeadCount: 0,
                 },
               },
             },
@@ -1091,11 +1137,14 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
                 in: {
                   assignTo: "$$r._id.assignTo",
                   monthKey: "$$r._id.monthKey",
-                  totalPayments: 0, agentCreatedPayments: 0, assignedPayments: 0,
+                  totalPayments: 0,
+                  agentCreatedPayments: 0,
+                  assignedPayments: 0,
                   totalRefunds: "$$r.totalRefunds",
                   agentCreatedRefunds: "$$r.agentCreatedRefunds",
                   assignedRefunds: "$$r.assignedRefunds",
-                  basePrice: 0, agentCreatedLeadCount: 0,
+                  basePrice: 0,
+                  agentCreatedLeadCount: 0,
                 },
               },
             },
@@ -1106,9 +1155,14 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
                 in: {
                   assignTo: "$$b._id.assignTo",
                   monthKey: "$$b._id.monthKey",
-                  totalPayments: 0, agentCreatedPayments: 0, assignedPayments: 0,
-                  totalRefunds: 0, agentCreatedRefunds: 0, assignedRefunds: 0,
-                  basePrice: "$$b.basePrice", agentCreatedLeadCount: 0,
+                  totalPayments: 0,
+                  agentCreatedPayments: 0,
+                  assignedPayments: 0,
+                  totalRefunds: 0,
+                  agentCreatedRefunds: 0,
+                  assignedRefunds: 0,
+                  basePrice: "$$b.basePrice",
+                  agentCreatedLeadCount: 0,
                 },
               },
             },
@@ -1119,9 +1173,14 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
                 in: {
                   assignTo: "$$l._id.assignTo",
                   monthKey: "$$l._id.monthKey",
-                  totalPayments: 0, agentCreatedPayments: 0, assignedPayments: 0,
-                  totalRefunds: 0, agentCreatedRefunds: 0, assignedRefunds: 0,
-                  basePrice: 0, agentCreatedLeadCount: "$$l.agentCreatedLeadCount",
+                  totalPayments: 0,
+                  agentCreatedPayments: 0,
+                  assignedPayments: 0,
+                  totalRefunds: 0,
+                  agentCreatedRefunds: 0,
+                  assignedRefunds: 0,
+                  basePrice: 0,
+                  agentCreatedLeadCount: "$$l.agentCreatedLeadCount",
                 },
               },
             },
@@ -1149,9 +1208,18 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
     // Calculate Net Sales (Ensuring they don't drop below 0)
     {
       $addFields: {
-        totalSales: { $max: [0, { $subtract: ["$totalPayments", "$totalRefunds"] }] },
-        agentCreatedSales: { $max: [0, { $subtract:["$agentCreatedPayments", "$agentCreatedRefunds"] }] },
-        assignedSales: { $max: [0, { $subtract:["$assignedPayments", "$assignedRefunds"] }] },
+        totalSales: {
+          $max: [0, { $subtract: ["$totalPayments", "$totalRefunds"] }],
+        },
+        agentCreatedSales: {
+          $max: [
+            0,
+            { $subtract: ["$agentCreatedPayments", "$agentCreatedRefunds"] },
+          ],
+        },
+        assignedSales: {
+          $max: [0, { $subtract: ["$assignedPayments", "$assignedRefunds"] }],
+        },
       },
     },
 
@@ -1170,9 +1238,13 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
       $addFields: {
         agentEmail: "$_id.assignTo",
         agentName: "$userData.name",
-        monthDate: { $dateFromString: { dateString: { $concat:["$_id.monthKey", "-01"] } } },
+        monthDate: {
+          $dateFromString: {
+            dateString: { $concat: ["$_id.monthKey", "-01"] },
+          },
+        },
         targetAmount: {
-          $multiply:[
+          $multiply: [
             "$basePrice",
             { $divide: [{ $ifNull: ["$userData.target", 0] }, 100] },
           ],
@@ -1184,12 +1256,15 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
     {
       $addFields: {
         targetCompletionRate: {
-          $cond:[
+          $cond: [
             { $gt: ["$targetAmount", 0] },
             {
-              $round:[
+              $round: [
                 {
-                  $multiply: [{ $divide: ["$assignedSales", "$targetAmount"] }, 100],
+                  $multiply: [
+                    { $divide: ["$assignedSales", "$targetAmount"] },
+                    100,
+                  ],
                 },
                 0,
               ],
@@ -1208,49 +1283,84 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           $switch: {
             branches: [
               {
-                case: { $and:[{ $gte: ["$agentCreatedLeadCount", 1] }, { $lte:["$agentCreatedLeadCount", 50] }] },
-                then: { $multiply:["$agentCreatedSales", 0.005] },
+                case: {
+                  $and: [
+                    { $gte: ["$agentCreatedLeadCount", 1] },
+                    { $lte: ["$agentCreatedLeadCount", 50] },
+                  ],
+                },
+                then: { $multiply: ["$agentCreatedSales", 0.005] },
               },
               {
-                case: { $and: [{ $gte:["$agentCreatedLeadCount", 51] }, { $lte:["$agentCreatedLeadCount", 100] }] },
-                then: { $multiply:["$agentCreatedSales", 0.0075] },
+                case: {
+                  $and: [
+                    { $gte: ["$agentCreatedLeadCount", 51] },
+                    { $lte: ["$agentCreatedLeadCount", 100] },
+                  ],
+                },
+                then: { $multiply: ["$agentCreatedSales", 0.0075] },
               },
               {
-                case: { $and: [{ $gte:["$agentCreatedLeadCount", 101] }, { $lte:["$agentCreatedLeadCount", 200] }] },
+                case: {
+                  $and: [
+                    { $gte: ["$agentCreatedLeadCount", 101] },
+                    { $lte: ["$agentCreatedLeadCount", 200] },
+                  ],
+                },
                 then: { $multiply: ["$agentCreatedSales", 0.01] },
               },
               {
-                case: { $gt:["$agentCreatedLeadCount", 200] },
+                case: { $gt: ["$agentCreatedLeadCount", 200] },
                 then: { $multiply: ["$agentCreatedSales", 0.015] },
               },
             ],
             default: 0,
           },
         },
-        
+
         // Part B: Assigned Leads (Based on Target Completion & Assigned Sales)
         assignedCommission: {
           $switch: {
             branches: [
               {
-                case: { $and: [{ $gte:["$targetCompletionRate", 41] }, { $lte: ["$targetCompletionRate", 60] }] },
+                case: {
+                  $and: [
+                    { $gte: ["$targetCompletionRate", 41] },
+                    { $lte: ["$targetCompletionRate", 60] },
+                  ],
+                },
                 then: { $multiply: ["$assignedSales", 0.01] },
               },
               {
-                case: { $and: [{ $gte:["$targetCompletionRate", 61] }, { $lte: ["$targetCompletionRate", 80] }] },
+                case: {
+                  $and: [
+                    { $gte: ["$targetCompletionRate", 61] },
+                    { $lte: ["$targetCompletionRate", 80] },
+                  ],
+                },
                 then: { $multiply: ["$assignedSales", 0.0125] },
               },
               {
-                case: { $and: [{ $gte: ["$targetCompletionRate", 81] }, { $lte: ["$targetCompletionRate", 90] }] },
-                then: { $multiply:["$assignedSales", 0.015] },
+                case: {
+                  $and: [
+                    { $gte: ["$targetCompletionRate", 81] },
+                    { $lte: ["$targetCompletionRate", 90] },
+                  ],
+                },
+                then: { $multiply: ["$assignedSales", 0.015] },
               },
               {
-                case: { $and:[{ $gte: ["$targetCompletionRate", 91] }, { $lte:["$targetCompletionRate", 100] }] },
-                then: { $multiply:["$assignedSales", 0.0175] },
+                case: {
+                  $and: [
+                    { $gte: ["$targetCompletionRate", 91] },
+                    { $lte: ["$targetCompletionRate", 100] },
+                  ],
+                },
+                then: { $multiply: ["$assignedSales", 0.0175] },
               },
               {
-                case: { $gt:["$targetCompletionRate", 100] },
-                then: { $multiply:["$assignedSales", 0.02] },
+                case: { $gt: ["$targetCompletionRate", 100] },
+                then: { $multiply: ["$assignedSales", 0.02] },
               },
             ],
             default: 0,
@@ -1262,7 +1372,12 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
     // Total Commission Output
     {
       $addFields: {
-        commissionDue: { $round: [{ $add: ["$agentCreatedCommission", "$assignedCommission"] }, 0] },
+        commissionDue: {
+          $round: [
+            { $add: ["$agentCreatedCommission", "$assignedCommission"] },
+            0,
+          ],
+        },
       },
     },
 
@@ -1274,17 +1389,17 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
         monthKey: "$_id.monthKey",
         monthLabel: { $dateToString: { format: "%b %Y", date: "$monthDate" } },
         month: { $dateToString: { format: "%b %Y", date: "$monthDate" } },
-        
+
         totalSales: 1,
         agentCreatedSales: 1,
         assignedSales: 1,
         basePrice: 1,
         targetCompletionRate: 1,
-        
+
         agentCreatedLeadCount: 1,
-        agentCreatedCommission: { $round:["$agentCreatedCommission", 2] },
+        agentCreatedCommission: { $round: ["$agentCreatedCommission", 2] },
         assignedCommission: { $round: ["$assignedCommission", 2] },
-        
+
         commissionDue: 1,
       },
     },
@@ -1299,7 +1414,6 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
 
   return pipeline;
 };
-
 
 // --- 2. THE MAIN API FOR FRONTEND ---
 export const getCommissionList = async (req, res) => {
@@ -1329,13 +1443,13 @@ export const getCommissionList = async (req, res) => {
             agentName: row.agentName,
             monthKey: row.monthKey,
             monthLabel: row.monthLabel,
-            
+
             // Standard tracking fields
             totalSales: row.totalSales,
             basePrice: row.basePrice,
             targetCompletionRate: row.targetCompletionRate,
             commissionDue: row.commissionDue,
-            
+
             // NEW: Saving the separated commission logic for frontend usage
             agentCreatedSales: row.agentCreatedSales,
             assignedSales: row.assignedSales,
@@ -1377,11 +1491,11 @@ export const getCommissionList = async (req, res) => {
     ]);
 
     const map = new Map(
-      paymentSums.map((p) =>[`${p._id.agentEmail}__${p._id.monthKey}`, p]),
+      paymentSums.map(p => [`${p._id.agentEmail}__${p._id.monthKey}`, p]),
     );
 
     // 5) merge snapshot + paymentSum into final response
-    const result = snapshots.map((s) => {
+    const result = snapshots.map(s => {
       const k = `${s.agentEmail}__${s.monthKey}`;
       const p = map.get(k);
 
@@ -1427,7 +1541,6 @@ export const getCommissionList = async (req, res) => {
   }
 };
 
-
 // --- OTHER EXISTING FUNCTIONS ---
 
 export const payCommission = async (req, res) => {
@@ -1444,7 +1557,9 @@ export const payCommission = async (req, res) => {
     } = req.body;
 
     if (!agentEmail || !monthKey) {
-      return res.status(400).json({ error: "agentEmail and monthKey required" });
+      return res
+        .status(400)
+        .json({ error: "agentEmail and monthKey required" });
     }
 
     const amt = Number(amount);
@@ -1598,7 +1713,7 @@ export const getAllAgentsMonthlyPayments = async (req, res) => {
     // Uses the same pipeline to guarantee calculations match the snapshot logic
     const pipeline = buildCommissionPipeline({ email });
     const data = await lead.aggregate(pipeline);
-    
+
     return res.status(200).json(data);
   } catch (error) {
     console.error(error);

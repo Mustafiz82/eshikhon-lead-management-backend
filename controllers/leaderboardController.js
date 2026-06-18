@@ -346,7 +346,12 @@ export const getAdminLeadStats = async (req, res) => {
           assignedSales: {
             $sum: {
               $cond: [
-                { $ne: ["$creatorRole", "agent"] },
+                {
+                  $and: [
+                    { $ne: ["$creatorRole", "agent"] },
+                    { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                  ],
+                },
                 {
                   $reduce: {
                     input: {
@@ -869,9 +874,6 @@ export const getAgentleadState = async (req, res) => {
       return res.status(400).json({ error: "Month and Year are required" });
     }
 
-
-    
-
     // --- 1. Date Ranges Setup ---
     // const startOfMonth = new Date(year, month - 1, 1);
     // const endOfMonth = new Date(year, month, 1);
@@ -880,7 +882,6 @@ export const getAgentleadState = async (req, res) => {
     const endOfMonth = new Date(req.query.endDate);
 
     console.log(startOfMonth, endOfMonth);
-
 
     // For Option C (Today's Activity)
     const startOfToday = new Date();
@@ -917,6 +918,7 @@ export const getAgentleadState = async (req, res) => {
       "Joined on seminar",
       "Not Interested",
       "Enrolled in Other Institute",
+      "Enrolled with Other Number",
       "Call declined",
       "Call later",
       "Will Register",
@@ -1182,7 +1184,12 @@ export const getAgentleadState = async (req, res) => {
           totalSales: {
             $sum: {
               $cond: [
-                { $ne: ["$creatorRole", "agent"] },
+                {
+                  $and: [
+                    { $ne: ["$creatorRole", "agent"] },
+                    { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                  ],
+                },
                 {
                   $subtract: [
                     {
@@ -1313,7 +1320,12 @@ export const getAgentleadState = async (req, res) => {
           assignedSales: {
             $sum: {
               $cond: [
-                { $ne: ["$creatorRole", "agent"] },
+                {
+                  $and: [
+                    { $ne: ["$creatorRole", "agent"] },
+                    { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                  ],
+                },
                 {
                   $reduce: {
                     input: {
@@ -1698,7 +1710,7 @@ export const getLeadsGrowth = async (req, res) => {
             leadStatus: "Enrolled",
           }),
         ]);
-      })
+      }),
     );
 
     const totalLeads = monthlyStats.map(([t]) => t);
@@ -1709,8 +1721,6 @@ export const getLeadsGrowth = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
-
-
 
 export const getDailyCallCount = async (req, res) => {
   try {
@@ -1726,12 +1736,12 @@ export const getDailyCallCount = async (req, res) => {
       { email: 1, name: 1 },
     );
 
-    console.log(activeUsers.map((u) => u.email));
+    console.log(activeUsers.map(u => u.email));
 
     const stats = await Lead.aggregate([
       {
         $match: {
-          assignTo: { $in: activeUsers.map((u) => u.email) },
+          assignTo: { $in: activeUsers.map(u => u.email) },
           lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
           leadStatus: {
             $in: [
@@ -1740,6 +1750,7 @@ export const getDailyCallCount = async (req, res) => {
               "Joined on seminar",
               "Not Interested",
               "Enrolled in Other Institute",
+              "Enrolled with Other Number",
               "Call declined",
               "Call later",
               "Will Register",
@@ -1764,19 +1775,18 @@ export const getDailyCallCount = async (req, res) => {
     console.log(stats);
 
     const daysInMonth = new Date(year, month, 0).getDate();
-    const result = activeUsers.map((user) => ({
+    const result = activeUsers.map(user => ({
       name: user.name || user.email,
       calls: Array(daysInMonth).fill(0),
     }));
 
     console.log(result);
 
-    stats.forEach((s) => {
+    stats.forEach(s => {
       const idx = result.findIndex(
-        (r) =>
+        r =>
           r.name ===
-          (activeUsers.find((u) => u.email === s._id.agent)?.name ||
-            s._id.agent),
+          (activeUsers.find(u => u.email === s._id.agent)?.name || s._id.agent),
       );
       if (idx !== -1) {
         result[idx].calls[s._id.day - 1] = s.callCount;
@@ -1814,12 +1824,10 @@ export const getCourseSellingSummary = async (req, res) => {
 
     const leads = await Lead.find(leadQuery);
 
-    const summary = courses.map((c) => {
+    const summary = courses.map(c => {
       const courseName = c._id;
 
-      const relatedLeads = leads.filter(
-        (l) => l.interstedCourse === courseName,
-      );
+      const relatedLeads = leads.filter(l => l.interstedCourse === courseName);
 
       let totalSales = 0;
       let totalDue = 0;
@@ -1829,7 +1837,7 @@ export const getCourseSellingSummary = async (req, res) => {
       let onlineEnrolled = 0;
       let offlineEnrolled = 0;
 
-      relatedLeads.forEach((lead) => {
+      relatedLeads.forEach(lead => {
         const type = lead.interstedCourseType;
 
         /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
@@ -1874,7 +1882,7 @@ export const getCourseSellingSummary = async (req, res) => {
         totalSales += paidThisPeriod - refundToSubtract;
 
         /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
-        const hasPaymentThisPeriod = (lead.history || []).some((h) => {
+        const hasPaymentThisPeriod = (lead.history || []).some(h => {
           const d = new Date(h.date);
           return d >= start && d <= end;
         });

@@ -44,7 +44,9 @@ const leadSchema = new mongoose.Schema(
         "Already Enrolled",
         "On hold",
         "Pending",
-        "Refunded"
+        "Refunded",
+        "Enrolled with Other Number",
+        
       ],
       default: "Pending"
 

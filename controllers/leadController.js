@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import lead from "../models/lead.js";
 import course from "../models/course.js";
-import user from "../models/user.js"
+import user from "../models/user.js";
 import axios from "axios";
 
 export const createLead = async (req, res) => {
@@ -222,9 +222,17 @@ export const getAllLeads = async (req, res) => {
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$orderNumber" },
+              regex: search,
+              options: "i",
+            },
+          },
+        },
       ];
     }
-
     if (assignTo && assignTo !== "All") {
       filter.assignTo = assignTo;
     }
@@ -387,67 +395,64 @@ export const getAllLeads = async (req, res) => {
 // 4374060  1 person 3 order
 
 export const getOrderDetails = async (req, res) => {
-  const { searchInput , email} = req.query;
-  const orderNumber =  req.params.id ; 
- // or req.body
+  const { searchInput, email } = req.query;
+  const orderNumber = req.params.id;
+  // or req.body
 
- console.log(searchInput)
- console.log(email)
+  console.log(searchInput);
+  console.log(email);
 
   try {
+    // Find all leads using this order number
+    const existingLeads = await lead
+      .find({
+        orderNumber: Number(orderNumber),
+      })
+      .select("assignTo");
 
+    console.log(existingLeads);
 
-    
-  // Find all leads using this order number
-  const existingLeads = await lead.find({
-    orderNumber: Number(orderNumber),
-  }).select("assignTo");
+    if (existingLeads.length > 0) {
+      const uniqueAssignedUsers = [
+        ...new Set(
+          existingLeads
+            .map(lead => lead.assignTo?.trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      ];
 
-  console.log(existingLeads)
+      const requestingUser = email.trim().toLowerCase();
 
-  if (existingLeads.length > 0) {
-    const uniqueAssignedUsers = [
-      ...new Set(
-        existingLeads
-          .map(lead => lead.assignTo?.trim().toLowerCase())
-          .filter(Boolean),
-      ),
-    ];
-
-    const requestingUser = email.trim().toLowerCase();
-
-    // Business Rule:
-    // ALL leads with this order number must belong to requesting user
-    const hasMismatch = uniqueAssignedUsers.some(
-      assignedEmail => assignedEmail !== requestingUser,
-    );
-
-    if (hasMismatch) {
-      const mismatchedEmails = uniqueAssignedUsers.filter(
+      // Business Rule:
+      // ALL leads with this order number must belong to requesting user
+      const hasMismatch = uniqueAssignedUsers.some(
         assignedEmail => assignedEmail !== requestingUser,
       );
-      
-      const users = await user.find({
-        email: { $in: mismatchedEmails },
-      }).select("name email");
-      
-      console.log(users);
 
-      // 1. Extract the names from the array of user objects
-      const userNames = users.map(u => u.name).join(", ");
+      if (hasMismatch) {
+        const mismatchedEmails = uniqueAssignedUsers.filter(
+          assignedEmail => assignedEmail !== requestingUser,
+        );
 
-      return res.status(400).json({
-        success: false,
-        // 2. Use backticks (`) instead of double quotes (") for string interpolation
-        message: `This order number is already assigned to ${userNames || "another counselor"}.`,
-        assignedUsers: users,
-      });
+        const users = await user
+          .find({
+            email: { $in: mismatchedEmails },
+          })
+          .select("name email");
+
+        console.log(users);
+
+        // 1. Extract the names from the array of user objects
+        const userNames = users.map(u => u.name).join(", ");
+
+        return res.status(400).json({
+          success: false,
+          // 2. Use backticks (`) instead of double quotes (") for string interpolation
+          message: `This order number is already assigned to ${userNames || "another counselor"}.`,
+          assignedUsers: users,
+        });
+      }
     }
-    
-  }
-
-
-
 
     const credentials = Buffer.from(
       `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
@@ -464,7 +469,7 @@ export const getOrderDetails = async (req, res) => {
 
     const order = response.data;
 
-    // console.log(order)
+    console.log(order);
     // return res.json(order)
 
     if (!order.line_items || order.line_items.length === 0) {
@@ -552,6 +557,8 @@ export const getOrderDetails = async (req, res) => {
       total: selectedCourse.total.toFixed(2),
       type: selectedCourse.type,
       status: order.status,
+      customerPhone: order.billing.phone,
+      orderCompletionDate: order.date_completed,
     };
 
     console.log(result);
@@ -1033,13 +1040,26 @@ export const updateSingleLead = async (req, res) => {
 
     if (incomingPayment > 0) {
       // Check if frontend sent a date, otherwise use current time
-      const txDate = updates.paymentDate
-        ? new Date(updates.paymentDate)
-        : new Date();
+      // const txDate = updates.paymentDate
+      //   ? new Date(updates.paymentDate)
+      //   : new Date();
+
+      // const paymentEntry = {
+      //   paidAmount: incomingPayment,
+      //   date: txDate, // <--- Use the variable here
+      // };
+
+      const isFirstPayment =
+        !Array.isArray(leadDoc.history) || leadDoc.history.length === 0;
+
+      const txDate =
+        isFirstPayment && updates.orderCompletionDate
+          ? new Date(updates.orderCompletionDate)
+          : new Date();
 
       const paymentEntry = {
         paidAmount: incomingPayment,
-        date: txDate, // <--- Use the variable here
+        date: txDate,
       };
 
       leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
@@ -1347,11 +1367,10 @@ export const deleteLeads = async (req, res) => {
   }
 };
 
-
 export const handleOrderCreatedWebhook = (req, res) => {
   // Print the incoming request body to your terminal
   console.log("Webhook Payload Received:", req.body);
-  
+
   // Send a 200 OK response back to WooCommerce immediately
   return res.sendStatus(200);
 };
