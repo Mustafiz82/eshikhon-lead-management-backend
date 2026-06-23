@@ -1455,7 +1455,7 @@ export const getCommissionList = async (req, res) => {
             assignedSales: row.assignedSales,
             agentCreatedLeadCount: row.agentCreatedLeadCount,
             agentCreatedCommission: row.agentCreatedCommission,
-            assignedCommission: row.assignedCommission,
+            assignedCommission: row.assignedCommission, 
 
             calcVersion: "v2", // Version bump just to show it uses the new logic
           },

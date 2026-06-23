@@ -336,13 +336,13 @@ export const getAllLeads = async (req, res) => {
       };
     }
 
-    if (missedFollowUpDate && missedFollowUpDate !== "All") {
-      const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
-      if (start && end) {
-        followFilter.$gte = start;
-        followFilter.$lte = end;
-      }
-    }
+    // if (missedFollowUpDate && missedFollowUpDate !== "All") {
+    //   const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
+    //   if (start && end) {
+    //     followFilter.$gte = start;
+    //     followFilter.$lte = end;
+    //   }
+    // }
 
     if (lock && lock !== "All") {
       filter.isLocked = lock == "Locked" ? true : false;
