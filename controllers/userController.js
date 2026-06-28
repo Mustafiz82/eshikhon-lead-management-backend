@@ -2,6 +2,8 @@
 import lead from "../models/lead.js"
 import User from "../models/user.js"
 import { compare } from "bcrypt"
+import jwt from "jsonwebtoken"; 
+
 
 export const createUser = async (req, res) => {
   try {
@@ -67,6 +69,40 @@ export const deleteUser = async (req, res) => {
 }
 
 
+// export const login = async (req, res) => {
+//   try {
+//     const { email, password } = req.body
+
+//     if (!email || !password) {
+//       return res.status(400).json({ error: "Email and password are required" })
+//     }
+//     // console.log(email , password)
+
+
+//     const user = await User.findOne({
+//       email: email
+//     }).select("+password")
+
+//     if (!user) {
+//       return res.status(400).json({ error: "user not found" })
+//     }
+
+//     const ok = await compare(password, user.password)
+
+//     if (!ok) return res.status(400).json({ error: "Invalid Credentials" })
+
+//     const { password: _, ...safe } = user.toObject();
+
+//     return res.json({ user: safe });
+
+//     // console.log( user )
+//   } catch (error) {
+//     return res.status(400).json({ error: error.message })
+//   }
+// }   
+
+
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body
@@ -74,7 +110,7 @@ export const login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" })
     }
-    // console.log(email , password)
+    console.log(email , password)
 
 
     const user = await User.findOne({
@@ -91,10 +127,27 @@ export const login = async (req, res) => {
 
     const { password: _, ...safe } = user.toObject();
 
+  
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" } 
+    );
+
+    console.log(token)
+
+
+    res.cookie("token", token, {
+      httpOnly: true, 
+      secure: false ,
+      sameSite:"lax" ,
+      maxAge: 24 * 60 * 60 * 1000 
+    });
+
     return res.json({ user: safe });
 
     // console.log( user )
   } catch (error) {
     return res.status(400).json({ error: error.message })
   }
-}   
+}

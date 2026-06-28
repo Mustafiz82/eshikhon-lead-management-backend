@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, getOrderDetails, markJoinedFromAttendance, updateLeads, updateSingleCreatedLead, updateSingleLead } from "../controllers/leadController.js"
+import { verifyAdmin } from "../middleware/authMiddleware.js"
 
 export const leadRoute = Router()
 
@@ -14,5 +15,5 @@ leadRoute.get("/order/:id", getOrderDetails)
 leadRoute.patch("/", updateLeads)
 leadRoute.patch("/:id", updateSingleLead)
 leadRoute.post("/mark-attendence", markJoinedFromAttendance)
-leadRoute.delete("/" , deleteLeads)
+leadRoute.delete("/" , verifyAdmin , deleteLeads)
 

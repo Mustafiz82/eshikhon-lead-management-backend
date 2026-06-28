@@ -874,6 +874,15 @@ export const getAgentleadState = async (req, res) => {
       return res.status(400).json({ error: "Month and Year are required" });
     }
 
+    let targetEmail = email;
+    let targetId = id;
+
+    // Force non-admins to only query their own data
+    if (req.user.role !== "admin") {
+      targetEmail = req.user.email;
+      targetId = req.user.id;
+    }
+
     // --- 1. Date Ranges Setup ---
     // const startOfMonth = new Date(year, month - 1, 1);
     // const endOfMonth = new Date(year, month, 1);
@@ -909,7 +918,7 @@ export const getAgentleadState = async (req, res) => {
     };
 
     // Apply User Filter
-    if (email) superMatch.assignTo = email;
+    if (targetEmail) superMatch.assignTo = targetEmail;
 
     // --- 3. Status Arrays ---
     const connectedStatuses = [
@@ -1647,12 +1656,14 @@ export const getAgentleadState = async (req, res) => {
       },
     ]);
 
-    if (email || id) {
+    console.log(usersWithStats);
+
+    if ((targetEmail || id) && (targetEmail = email)) {
       if (usersWithStats.length > 0) {
         return res.status(200).json(usersWithStats[0]);
       } else {
         const user = await User.findOne({
-          $or: [{ email }, { _id: id }],
+          $or: [{ email: targetEmail }, { _id: id }],
         }).select("-password -refreshToken");
         return res.status(200).json(user || null);
       }
@@ -1730,19 +1741,22 @@ export const getDailyCallCount = async (req, res) => {
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth = new Date(year, month, 1);
 
+    console.log(startOfMonth);
+    console.log(endOfMonth);
+
     // ✅ Only fetch users that are not admin
     const activeUsers = await User.find(
       { role: { $ne: "admin" } },
       { email: 1, name: 1 },
     );
 
-    console.log(activeUsers.map(u => u.email));
+    console.log(activeUsers.map((u) => u.email));
 
     const stats = await Lead.aggregate([
       {
         $match: {
-          assignTo: { $in: activeUsers.map(u => u.email) },
-          lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
+          assignTo: { $in: activeUsers.map((u) => u.email) },
+          // lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
           leadStatus: {
             $in: [
               "Enrolled",
@@ -1767,26 +1781,30 @@ export const getDailyCallCount = async (req, res) => {
             day: { $dayOfMonth: "$lastContacted" },
           },
           callCount: { $sum: 1 },
+          rawContactedDates: { $push: "$lastContacted" },
         },
       },
       { $sort: { "_id.agent": 1, "_id.day": 1 } },
     ]);
 
+    console.log("states");
     console.log(stats);
 
     const daysInMonth = new Date(year, month, 0).getDate();
-    const result = activeUsers.map(user => ({
+    const result = activeUsers.map((user) => ({
       name: user.name || user.email,
       calls: Array(daysInMonth).fill(0),
     }));
 
+    console.log("result");
     console.log(result);
 
-    stats.forEach(s => {
+    stats.forEach((s) => {
       const idx = result.findIndex(
-        r =>
+        (r) =>
           r.name ===
-          (activeUsers.find(u => u.email === s._id.agent)?.name || s._id.agent),
+          (activeUsers.find((u) => u.email === s._id.agent)?.name ||
+            s._id.agent),
       );
       if (idx !== -1) {
         result[idx].calls[s._id.day - 1] = s.callCount;
@@ -1824,10 +1842,12 @@ export const getCourseSellingSummary = async (req, res) => {
 
     const leads = await Lead.find(leadQuery);
 
-    const summary = courses.map(c => {
+    const summary = courses.map((c) => {
       const courseName = c._id;
 
-      const relatedLeads = leads.filter(l => l.interstedCourse === courseName);
+      const relatedLeads = leads.filter(
+        (l) => l.interstedCourse === courseName,
+      );
 
       let totalSales = 0;
       let totalDue = 0;
@@ -1837,7 +1857,7 @@ export const getCourseSellingSummary = async (req, res) => {
       let onlineEnrolled = 0;
       let offlineEnrolled = 0;
 
-      relatedLeads.forEach(lead => {
+      relatedLeads.forEach((lead) => {
         const type = lead.interstedCourseType;
 
         /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
@@ -1882,7 +1902,7 @@ export const getCourseSellingSummary = async (req, res) => {
         totalSales += paidThisPeriod - refundToSubtract;
 
         /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
-        const hasPaymentThisPeriod = (lead.history || []).some(h => {
+        const hasPaymentThisPeriod = (lead.history || []).some((h) => {
           const d = new Date(h.date);
           return d >= start && d <= end;
         });
