@@ -10,7 +10,7 @@ export const createLead = async (req, res) => {
     let leads = Array.isArray(req.body) ? req.body : [req.body];
 
     // Step 1️⃣ — Normalize values
-    leads = leads.map(lead => {
+    leads = leads.map((lead) => {
       return {
         ...lead,
         phone: String(lead.phone)?.trim(),
@@ -49,7 +49,7 @@ export const createLead = async (req, res) => {
       const existing = await lead
         .find(
           {
-            $or: uniqueIncoming.map(l => ({
+            $or: uniqueIncoming.map((l) => ({
               phone: l.phone,
               interstedCourse: l.interstedCourse,
             })),
@@ -60,7 +60,7 @@ export const createLead = async (req, res) => {
 
       // Create a Set for fast lookup
       existingPairs = new Set(
-        existing.map(e => `${e.phone}-${e.interstedCourse}`),
+        existing.map((e) => `${e.phone}-${e.interstedCourse}`),
       );
     }
 
@@ -402,6 +402,13 @@ export const getOrderDetails = async (req, res) => {
   console.log(searchInput);
   console.log(email);
 
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "Email query parameter is required.",
+    });
+  }
+
   try {
     // Find all leads using this order number
     const existingLeads = await lead
@@ -416,7 +423,7 @@ export const getOrderDetails = async (req, res) => {
       const uniqueAssignedUsers = [
         ...new Set(
           existingLeads
-            .map(lead => lead.assignTo?.trim().toLowerCase())
+            .map((lead) => lead.assignTo?.trim().toLowerCase())
             .filter(Boolean),
         ),
       ];
@@ -426,12 +433,12 @@ export const getOrderDetails = async (req, res) => {
       // Business Rule:
       // ALL leads with this order number must belong to requesting user
       const hasMismatch = uniqueAssignedUsers.some(
-        assignedEmail => assignedEmail !== requestingUser,
+        (assignedEmail) => assignedEmail !== requestingUser,
       );
 
       if (hasMismatch) {
         const mismatchedEmails = uniqueAssignedUsers.filter(
-          assignedEmail => assignedEmail !== requestingUser,
+          (assignedEmail) => assignedEmail !== requestingUser,
         );
 
         const users = await user
@@ -443,7 +450,7 @@ export const getOrderDetails = async (req, res) => {
         console.log(users);
 
         // 1. Extract the names from the array of user objects
-        const userNames = users.map(u => u.name).join(", ");
+        const userNames = users.map((u) => u.name).join(", ");
 
         return res.status(400).json({
           success: false,
@@ -479,7 +486,7 @@ export const getOrderDetails = async (req, res) => {
     }
 
     // 1. Helper function to clean name and determine type
-    const processItem = item => {
+    const processItem = (item) => {
       const rawName = item.name;
       // Clean name: Remove everything inside and including brackets (e.g., "(Live Course)")
       const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
@@ -504,10 +511,12 @@ export const getOrderDetails = async (req, res) => {
     };
 
     // 2. Process all items and filter out "video" courses
-    const allProcessedItems = order.line_items.map(item => processItem(item));
+    const allProcessedItems = order.line_items.map((item) => processItem(item));
 
     console.log(allProcessedItems);
-    const validItems = allProcessedItems.filter(item => item.type !== "video");
+    const validItems = allProcessedItems.filter(
+      (item) => item.type !== "video",
+    );
 
     if (validItems.length === 0) {
       return res
@@ -518,7 +527,7 @@ export const getOrderDetails = async (req, res) => {
     // 3. Try to match with searchInput (Normalized)
     let selectedCourse = null;
     if (searchInput) {
-      const normalize = str =>
+      const normalize = (str) =>
         str
           .toLowerCase()
           .replace(/[^\w\s]/g, "")
@@ -527,10 +536,10 @@ export const getOrderDetails = async (req, res) => {
 
       const searchWords = normalize(searchInput);
 
-      selectedCourse = validItems.find(item => {
+      selectedCourse = validItems.find((item) => {
         const courseWords = normalize(item.cleanedName);
 
-        const matchedCount = courseWords.filter(word =>
+        const matchedCount = courseWords.filter((word) =>
           searchWords.includes(word),
         ).length;
 
@@ -596,7 +605,7 @@ export const getLeadSources = async (req, res) => {
     ]);
 
     // Extract array of strings
-    const uniqueSources = sources.map(item => item.leadSource);
+    const uniqueSources = sources.map((item) => item.leadSource);
 
     res.status(200).json(uniqueSources);
   } catch (error) {
@@ -644,8 +653,8 @@ export const getInterestedCourses = async (req, res) => {
       course.find({}, { name: 1, _id: 0 }),
     ]);
 
-    const leadCourseNames = leadCourses.map(item => item.name);
-    const dbCourseNames = dbCourses.map(item => item.name);
+    const leadCourseNames = leadCourses.map((item) => item.name);
+    const dbCourseNames = dbCourses.map((item) => item.name);
 
     const uniqueCourses = [...new Set([...leadCourseNames, ...dbCourseNames])];
 
@@ -666,6 +675,10 @@ export const getLeadsCount = async (req, res) => {
       status,
       course,
       search,
+      sort,                  // Added to mirror getAllLeads destructuring
+      interstedSeminar,
+      limit,                 // Added to mirror getAllLeads destructuring
+      currentPage,           // Added to mirror getAllLeads destructuring
       createdBy,
       assignTo,
       leadStatus,
@@ -679,12 +692,12 @@ export const getLeadsCount = async (req, res) => {
       showOnlyFollowups,
       followUpDate,
       showOnlyMissedFollowUps,
-      missedFollowUpDate,
-      // Added missing params
-      interstedSeminar,
+      showOnlyMissedPayments, // Added to mirror getAllLeads destructuring
+      fields,                // Added to mirror getAllLeads destructuring
       lock,
       leadSource,
       upcomingPaymentsDate,
+      missedFollowUpDate,
     } = req.query;
 
     const filter = {};
@@ -692,6 +705,15 @@ export const getLeadsCount = async (req, res) => {
     const assignEndDateFormat = new Date(assignEndDate);
     const paymentStartDateFormat = new Date(paymentStartDate);
     const paymentEndDateFormat = new Date(paymentEndDate);
+
+    // NOTE: Mirrored from getAllLeads to fix midnight Bangladesh Standard Time (18:00 UTC) adjustments
+    if (paymentEndDateFormat.getUTCHours() === 18) {
+      paymentEndDateFormat.setUTCDate(paymentEndDateFormat.getUTCDate() + 1);
+      paymentEndDateFormat.setUTCHours(17, 59, 59, 999);
+    } else {
+      // Fallback for UTC midnight
+      paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
+    }
 
     // 1. Status
     if (status && status !== "All") {
@@ -704,6 +726,7 @@ export const getLeadsCount = async (req, res) => {
     }
 
     // 3. Search
+    /* Old Search logic commented out to mirror getAllLeads (which includes orderNumber search)
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -711,8 +734,26 @@ export const getLeadsCount = async (req, res) => {
         { phone: { $regex: search, $options: "i" } },
       ];
     }
+    */
+    // Mirrored search logic from getAllLeads (adds orderNumber regex string-cast search matching)
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$orderNumber" },
+              regex: search,
+              options: "i",
+            },
+          },
+        },
+      ];
+    }
 
-    // 4. AssignTo (FIXED: Added check for "All")
+    // 4. AssignTo
     if (assignTo && assignTo !== "All") {
       filter.assignTo = assignTo;
     }
@@ -723,11 +764,21 @@ export const getLeadsCount = async (req, res) => {
     }
 
     // 6. LeadStatus
+    /* Old LeadStatus logic commented out to mirror special "Contacted" treatment in getAllLeads
     if (leadStatus && leadStatus !== "All") {
       filter.leadStatus = leadStatus;
     }
+    */
+    // Mirrored LeadStatus logic from getAllLeads (adds special "Contacted" status support)
+    if (leadStatus && leadStatus !== "All") {
+      if (leadStatus == "Contacted") {
+        filter.leadStatus = { $ne: "Pending" };
+      } else {
+        filter.leadStatus = leadStatus;
+      }
+    }
 
-    // 7. Seminar (ADDED)
+    // 7. Seminar
     if (interstedSeminar && interstedSeminar !== "All") {
       filter.interstedSeminar = interstedSeminar;
     }
@@ -769,7 +820,7 @@ export const getLeadsCount = async (req, res) => {
       if (start && end) filter.followUpDate = { $gte: start, $lte: end };
     }
 
-    // 12. Upcoming Payments (ADDED)
+    // 12. Upcoming Payments
     if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
       if (upcomingPaymentsDate === "All") {
         const now = new Date();
@@ -791,6 +842,7 @@ export const getLeadsCount = async (req, res) => {
     }
 
     // 13. Missed Follow Ups Boolean
+    /* Old Missed Follow Ups logic commented out to mirror overwriting behavior of getAllLeads
     if (showOnlyMissedFollowUps === "true") {
       const now = new Date();
       const bdNow = new Date(
@@ -805,8 +857,38 @@ export const getLeadsCount = async (req, res) => {
         $lt: bdNow,
       };
     }
+    */
+    // Mirrored Missed Follow Ups logic from getAllLeads
+    if (showOnlyMissedFollowUps === "true") {
+      const now = new Date();
+      const bdNow = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+      );
 
-    // 14. Missed Follow Up Date (FIXED LOGIC)
+      filter.followUpDate = {
+        $exists: true,
+        $ne: null,
+        $lt: bdNow, // strictly before current date-time
+      };
+    }
+
+    // 13b. Missed Payments Boolean (Added to mirror getAllLeads)
+    if (showOnlyMissedPayments === "true") {
+      const now = new Date();
+      const bdNow = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+      );
+
+      filter.nextEstimatedPaymentDate = {
+        $exists: true,
+        $ne: null,
+        $lt: bdNow, // strictly before current date-time
+      };
+    }
+
+    // 14. Missed Follow Up Date
+    // NOTE: Commented out to mirror getAllLeads, which has this filter commented out.
+    /*
     if (missedFollowUpDate && missedFollowUpDate !== "All") {
       const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
       const now = new Date();
@@ -822,13 +904,14 @@ export const getLeadsCount = async (req, res) => {
         ...(start && end ? { $gte: start, $lte: end } : {}),
       };
     }
+    */
 
-    // 15. Lock (ADDED)
+    // 15. Lock
     if (lock && lock !== "All") {
       filter.isLocked = lock == "Locked" ? true : false;
     }
 
-    // 16. Lead Source (ADDED)
+    // 16. Lead Source
     if (leadSource && leadSource !== "All") {
       filter.leadSource = leadSource;
     }
@@ -853,7 +936,7 @@ export const updateLeads = async (req, res) => {
     }
 
     const result = await lead.updateMany(
-      { _id: { $in: ids.map(id => new mongoose.Types.ObjectId(id)) } },
+      { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } },
       { $set: updateData },
       { runValidators: true },
     );
@@ -972,7 +1055,7 @@ export const updateSingleLead = async (req, res) => {
         "discountUnit",
         "discountPercent",
       ];
-      enrollmentFields.forEach(k => handledKeys.add(k));
+      enrollmentFields.forEach((k) => handledKeys.add(k));
     }
 
     // SCENARIO B: REFUND
@@ -1070,7 +1153,7 @@ export const updateSingleLead = async (req, res) => {
     }
 
     if (updates.note && updates.note.length > 0) {
-      const manualNotes = updates.note.map(n => ({
+      const manualNotes = updates.note.map((n) => ({
         text: typeof n === "string" ? n : n.text,
         by: currentUser,
       }));
@@ -1204,13 +1287,13 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
   return { start, end };
 }
 
-const cleanEmail = raw => {
+const cleanEmail = (raw) => {
   if (!raw) return null;
   const m = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return m ? m[0].toLowerCase().trim() : null;
 };
 
-const phoneEndings = raw => {
+const phoneEndings = (raw) => {
   // robust endings for international: last 10/9/8 of digits (drop leading 00 / 0)
   const digits = String(raw ?? "")
     .replace(/\D+/g, "")
@@ -1341,7 +1424,7 @@ export const deleteLeads = async (req, res) => {
     // Deduplicate + validate ObjectIds
     const uniqueIds = [...new Set(ids.map(String))];
     const validIds = uniqueIds.filter(mongoose.isValidObjectId);
-    const invalidIds = uniqueIds.filter(id => !mongoose.isValidObjectId(id));
+    const invalidIds = uniqueIds.filter((id) => !mongoose.isValidObjectId(id));
 
     console.log(validIds, "validids");
 
