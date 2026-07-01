@@ -15,5 +15,5 @@ leadRoute.get("/order/:id", getOrderDetails)
 leadRoute.patch("/", updateLeads)
 leadRoute.patch("/:id", updateSingleLead)
 leadRoute.post("/mark-attendence", markJoinedFromAttendance)
-leadRoute.delete("/" , verifyAdmin , deleteLeads)
+leadRoute.delete("/" ,  deleteLeads)
 

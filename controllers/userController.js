@@ -140,7 +140,8 @@ export const login = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true, 
       secure: false ,
-      sameSite:"lax" ,
+      sameSite: "none" ,
+      domain: process.env.COOKIE_DOMAIN,
       maxAge: 24 * 60 * 60 * 1000 
     });
 

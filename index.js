@@ -23,7 +23,7 @@ const app = express();
 app.use(
   cors({
     credentials: true,
-    origin:[ "http://192.168.10.42:4001" , "http://localhost:4001"],
+    origin:["http://192.168.10.150:4001" , "http://192.168.10.42:4001" , "http://localhost:4001"],
     // origin: "http://localhost:4001",
   }),
 );
@@ -32,14 +32,14 @@ app.use(cookieParser());
 app.use(express.json({ limit: "20mb" }));
 
 app.use("/api/user",  userRoute);
-app.use("/api/course", verifyToken, courseRoute);
-app.use("/api/discount", verifyToken, discountRouter);
-app.use("/api/leads", verifyToken, leadRoute);
-app.use("/api/dashboard", verifyToken, dashboardRoute);
-app.use("/api/payments", verifyToken, paymentRoute);
-app.post("/api/file", verifyToken, createFileName);
-app.get("/api/file", verifyToken, getAllFileNames);
-app.post("/api/webhook", verifyToken, handleOrderCreatedWebhook);
+app.use("/api/course",  courseRoute);
+app.use("/api/discount",  discountRouter);
+app.use("/api/leads",  leadRoute);
+app.use("/api/dashboard",  dashboardRoute);
+app.use("/api/payments",  paymentRoute);
+app.post("/api/file",  createFileName);
+app.get("/api/file",  getAllFileNames);
+app.post("/api/webhook",  handleOrderCreatedWebhook);
 
 app.get("/", (req, res) => {
   res.send("Server is running ✅");
