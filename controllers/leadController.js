@@ -409,6 +409,16 @@ export const getOrderDetails = async (req, res) => {
     });
   }
 
+  const requestingUserDoc = await user
+    .findOne({ email: email.trim().toLowerCase() })
+    .select("role");
+
+  // Check if the user is an admin or manager (Managers usually bypass rules too, add/remove as needed)
+  const isAdmin =
+    requestingUserDoc &&
+    (requestingUserDoc.role === "admin" ||
+      requestingUserDoc.role === "manager");
+
   try {
     // Find all leads using this order number
     const existingLeads = await lead
@@ -419,7 +429,7 @@ export const getOrderDetails = async (req, res) => {
 
     console.log(existingLeads);
 
-    if (existingLeads.length > 0) {
+    if (existingLeads.length > 0 && !isAdmin) {
       const uniqueAssignedUsers = [
         ...new Set(
           existingLeads
@@ -497,7 +507,10 @@ export const getOrderDetails = async (req, res) => {
       } else if (rawName.toLowerCase().includes("offline course")) {
         type = "Offline";
       } else if (rawName.toLowerCase().includes("video course")) {
-        type = "video"; // We will use this to filter later
+        type = "Video Course"; // We will use this to filter later
+      }
+      else if (rawName.toLowerCase().includes("download link)")) {
+        type = "Download Course"; 
       }
 
       return {
@@ -675,10 +688,10 @@ export const getLeadsCount = async (req, res) => {
       status,
       course,
       search,
-      sort,                  // Added to mirror getAllLeads destructuring
+      sort, // Added to mirror getAllLeads destructuring
       interstedSeminar,
-      limit,                 // Added to mirror getAllLeads destructuring
-      currentPage,           // Added to mirror getAllLeads destructuring
+      limit, // Added to mirror getAllLeads destructuring
+      currentPage, // Added to mirror getAllLeads destructuring
       createdBy,
       assignTo,
       leadStatus,
@@ -693,7 +706,7 @@ export const getLeadsCount = async (req, res) => {
       followUpDate,
       showOnlyMissedFollowUps,
       showOnlyMissedPayments, // Added to mirror getAllLeads destructuring
-      fields,                // Added to mirror getAllLeads destructuring
+      fields, // Added to mirror getAllLeads destructuring
       lock,
       leadSource,
       upcomingPaymentsDate,

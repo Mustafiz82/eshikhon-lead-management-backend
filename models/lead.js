@@ -3,32 +3,52 @@ import mongoose from "mongoose";
 const leadSchema = new mongoose.Schema(
   {
     name: { type: String, trim: true },
-    phone: { type: String, trim: true, },
+    phone: { type: String, trim: true },
     address: { type: String, trim: true },
     email: {
       type: String,
 
       lowercase: true,
-
     },
-    questions: { type: mongoose.Schema.Types.Mixed },   // other will be in quesiont preoper , seminarSource add , source file name
+    questions: { type: mongoose.Schema.Types.Mixed }, // other will be in quesiont preoper , seminarSource add , source file name
     interstedCourse: {
       type: String,
-      default: "not provided"
+      default: "not provided",
     },
-    interstedCourseType: { type: String, enum: ["Online", "Offline", "Video"], default: "Online" },
+    interstedCourseType: {
+      type: String,
+      enum: [
+        "Online",
+        "Offline",
+        "Video Course",
+        "Download Course",
+        "Free course",
+        "Both",
+        "Not Specified",
+      ],
+      default: "Not Specified",
+    },
+
     leadSource: {
       type: String,
-      default: "Not Provided"
+      default: "Not Provided",
     },
     createdBy: { type: String, required: true },
     creatorRole: { type: String },
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
     assignDate: { type: Date },
-    leadType: { type: String, enum: ["potential leads", "open Pool"], default: "potential leads" },
+    leadType: {
+      type: String,
+      enum: ["potential leads", "open Pool"],
+      default: "potential leads",
+    },
 
-    interstedSeminar: { type: String, enum: ["Joined", "Online", "Offline", "None"], default: "None" },
+    interstedSeminar: {
+      type: String,
+      enum: ["Joined", "Online", "Offline", "None"],
+      default: "None",
+    },
     enrolledTo: { type: String },
     leadStatus: {
       type: String,
@@ -46,84 +66,89 @@ const leadSchema = new mongoose.Schema(
         "Pending",
         "Refunded",
         "Enrolled with Other Number",
-        
       ],
-      default: "Pending"
-
+      default: "Pending",
     },
-    leadDiscount: { type: Number, default: 0 },   // the discount amount
+    leadDiscount: { type: Number, default: 0 }, // the discount amount
+    callCount : {
+      type : Number , 
+      default : 0
+    },
     discountUnit: {
       type: String,
       enum: ["percent", "flat"],
-      default: "flat"
-    },                                            // discout unit
+      default: "flat",
+    }, // discout unit
 
     discountSource: {
       type: String,
-      trim: true
-    },                                            // discount sourse
+      trim: true,
+    }, // discount sourse
 
     originalPrice: {
       type: Number,
-      default: 0
-    },                                             // buying price of course
+      default: 0,
+    }, // buying price of course
 
     discountedPrice: {
       type: Number,
-      default: 0
-    },                                              // value after discoutn couon applid calculated with discoutn unit and amoutn always in amount 
+      default: 0,
+    }, // value after discoutn couon applid calculated with discoutn unit and amoutn always in amount
 
-    isLocked: {                                     // admin can lock leads 
+    isLocked: {
+      // admin can lock leads
       type: Boolean,
-      default: false
+      default: false,
+    },
+    entryBy: {
+      type: String,
+      trim: true,
     },
 
 
-    uniqueID : {
-      type : String
-
+    uniqueID: {
+      type: String,
     },
 
-    totalPaid: { type: Number, default: 0 },        // How much in total he have paid 
-    totalDue: { type: Number, default: 0 },         // how much total due he  has  to pay 
+    totalPaid: { type: Number, default: 0 }, // How much in total he have paid
+    totalDue: { type: Number, default: 0 }, // how much total due he  has  to pay
 
-    refundAmount: { type: Number, default: 0 },     // How much amount is refunded  
+    refundAmount: { type: Number, default: 0 }, // How much amount is refunded
 
-    history: [                                      // payment history 
+    history: [
+      // payment history
       {
         date: { type: Date, default: Date.now },
-        paidAmount: { type: Number, default: 0 }
-      }
+        paidAmount: { type: Number, default: 0 },
+      },
     ],
 
-    note: [                                          // notes automatic + menual 
+    note: [
+      // notes automatic + menual
       {
         text: { type: String, trim: true },
-        createdAt: { type: Date, default: Date.now, },
-        by: { type: String }
-      }
+        createdAt: { type: Date, default: Date.now },
+        by: { type: String },
+      },
     ],
-
-    lastContacted: { type: Date },                   // when last contacted with lead 
-    lastModifiedBy: { type: String },                // who modified last 
-    enrolledAt: { type: Date },                      // The date first time it marked as enrolled 
-    followUpDate: { type: Date },                    // when the leads need to call again 
-    sourceFileName: { type: String, trim: true, },   // file name of uploaded lead 
-    nextEstimatedPaymentDate: {                      // when user might paid later if downpayment happense
-      type: Date
+    firstContacted : {type : Date},
+    lastContacted: { type: Date }, // when last contacted with lead
+    lastModifiedBy: { type: String }, // who modified last
+    enrolledAt: { type: Date }, // The date first time it marked as enrolled
+    followUpDate: { type: Date }, // when the leads need to call again
+    sourceFileName: { type: String, trim: true }, // file name of uploaded lead
+    nextEstimatedPaymentDate: {
+      // when user might paid later if downpayment happense
+      type: Date,
     },
-    orderNumber : {type : Number , trim : true ,  index: true}
+    orderNumber: { type: Number, trim: true, index: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
-
 
 leadSchema.index({ email: 1 });
 leadSchema.index({ assignTo: 1, assignDate: 1 });
 leadSchema.index({ leadStatus: 1, enrolledAt: 1 });
 leadSchema.index({ createdAt: -1 });
 
-
-
 export default mongoose.model("Lead", leadSchema);
-
