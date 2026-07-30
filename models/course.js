@@ -1,16 +1,32 @@
 import mongoose from "mongoose";
 
 const courseSchema = new mongoose.Schema(
-    {
-        name: { type: String, required: true },
-        type: { type: String, enum: ["Online", "Offline", "Video"], required: true },
-        price: { type: Number, required: true },
-        code  : {type : String },
-        regularPrice : {type : Number}
+  {
+    name: { 
+      type: String, 
+      required: true, 
+      trim: true 
     },
-    {
-        timestamps: true
-    }
-) 
+    code: { 
+      type: String, 
+      trim: true 
+    },
+    type: [
+      {
+        type: String,
+        enum: [
+          "Online",
+          "Offline",
+          "Video Course",
+          "Download Course",
+          "Free course",
+        ],
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
 
-export default mongoose.model("Course" , courseSchema)
+export default mongoose.model("Course", courseSchema);

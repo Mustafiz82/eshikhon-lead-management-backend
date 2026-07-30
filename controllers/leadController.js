@@ -4,101 +4,161 @@ import course from "../models/course.js";
 import user from "../models/user.js";
 import axios from "axios";
 
+
 export const createLead = async (req, res) => {
   try {
-    // Always work with an array
     let leads = Array.isArray(req.body) ? req.body : [req.body];
 
-    // Step 1️⃣ — Normalize values
-    leads = leads.map((lead) => {
-      return {
-        ...lead,
-        phone: String(lead.phone)?.trim(),
-        interstedCourse: lead.interstedCourse?.trim() || "not provided",
-      };
-    });
+    // Helper to extract course names
+    const getCourseNames = (l) => {
+      if (Array.isArray(l.courses) && l.courses.length > 0) {
+        return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
+      }
+      if (l.interstedCourse) {
+        return [l.interstedCourse.trim()];
+      }
+      return ["not provided"];
+    };
+
+    // Step 1️⃣ — Normalize phone and orderNumber
+    leads = leads.map((l) => ({
+      ...l,
+      phone: String(l.phone || "").trim(),
+      orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
+    }));
 
     if (leads.length === 0) {
       return res.status(400).json({ error: "No leads provided" });
     }
 
-    // Initialize arrays for our categories
     const duplicatesInPayload = [];
     const duplicatesInDB = [];
-    const uniqueIncoming = []; // These are candidates for DB check
+    const uniqueIncoming = [];
 
-    // Step 2️⃣ — Remove duplicates inside the same upload
+    // Step 2️⃣ — Remove duplicates inside the SAME upload payload
     const seenPairs = new Set();
+    const seenOrderNumbers = new Set(); // 🔹 Track seen order numbers in payload
 
     for (const l of leads) {
-      const key = `${l.phone}-${l.interstedCourse}`;
+      const courseNames = getCourseNames(l);
+      let isPayloadDuplicate = false;
 
-      if (seenPairs.has(key)) {
-        // Category 1: Duplicate inside the uploaded file
+      // Check Phone + Course pair
+      for (const name of courseNames) {
+        const key = `${l.phone}__${name.toLowerCase()}`;
+        if (seenPairs.has(key)) {
+          isPayloadDuplicate = true;
+          break;
+        }
+      }
+
+      // Check Order Number uniqueness in payload
+      if (l.orderNumber && seenOrderNumbers.has(l.orderNumber)) {
+        isPayloadDuplicate = true;
+      }
+
+      if (isPayloadDuplicate) {
         duplicatesInPayload.push(l);
       } else {
-        seenPairs.add(key);
+        for (const name of courseNames) {
+          seenPairs.add(`${l.phone}__${name.toLowerCase()}`);
+        }
+        if (l.orderNumber) {
+          seenOrderNumbers.add(l.orderNumber);
+        }
         uniqueIncoming.push(l);
       }
     }
 
-    // Step 3️⃣ — Find which of the unique candidates already exist in the DB
+    // Step 3️⃣ — Find which unique candidates ALREADY exist in DB
     let existingPairs = new Set();
+    let existingOrderNumbers = new Set(); // 🔹 Track existing order numbers in DB
 
     if (uniqueIncoming.length > 0) {
+      const incomingOrderNumbers = uniqueIncoming
+        .map((l) => l.orderNumber)
+        .filter(Boolean);
+
+      // Conditions for Phone + Course matching
+      const dbConditions = uniqueIncoming.map((l) => {
+        const courseNames = getCourseNames(l);
+        return {
+          phone: l.phone,
+          $or: [
+            { "courses.courseName": { $in: courseNames } },
+            { interstedCourse: { $in: courseNames } },
+          ],
+        };
+      });
+
+      // Combined query: check Phone+Course OR OrderNumber
+      const mongoQuery = [...dbConditions];
+      if (incomingOrderNumbers.length > 0) {
+        mongoQuery.push({ orderNumber: { $in: incomingOrderNumbers } });
+      }
+
       const existing = await lead
-        .find(
-          {
-            $or: uniqueIncoming.map((l) => ({
-              phone: l.phone,
-              interstedCourse: l.interstedCourse,
-            })),
-          },
-          { phone: 1, interstedCourse: 1 },
-        )
+        .find({ $or: mongoQuery }, { phone: 1, interstedCourse: 1, courses: 1, orderNumber: 1 })
         .lean();
 
-      // Create a Set for fast lookup
-      existingPairs = new Set(
-        existing.map((e) => `${e.phone}-${e.interstedCourse}`),
-      );
+      existing.forEach((e) => {
+        // Collect DB order numbers
+        if (e.orderNumber) {
+          existingOrderNumbers.add(Number(e.orderNumber));
+        }
+
+        // Collect DB Phone + Course pairs
+        if (e.interstedCourse) {
+          existingPairs.add(`${e.phone}__${e.interstedCourse.trim().toLowerCase()}`);
+        }
+        if (Array.isArray(e.courses)) {
+          e.courses.forEach((c) => {
+            if (c.courseName) {
+              existingPairs.add(`${e.phone}__${c.courseName.trim().toLowerCase()}`);
+            }
+          });
+        }
+      });
     }
 
     // Step 4️⃣ — Separate New Leads from DB Duplicates
     const newLeads = [];
 
     for (const l of uniqueIncoming) {
-      const key = `${l.phone}-${l.interstedCourse}`;
+      const courseNames = getCourseNames(l);
 
-      if (existingPairs.has(key)) {
-        // Category 2: Already exists in the Database
+      const isCourseDuplicate = courseNames.some((name) =>
+        existingPairs.has(`${l.phone}__${name.toLowerCase()}`)
+      );
+
+      // Check if order number already exists in DB
+      const isOrderDuplicate = Boolean(l.orderNumber && existingOrderNumbers.has(l.orderNumber));
+
+      if (isCourseDuplicate || isOrderDuplicate) {
         duplicatesInDB.push(l);
       } else {
-        // Truly new lead
         newLeads.push(l);
       }
     }
 
-    // Step 5️⃣ — Insert unique leads (if any)
+    // Step 5️⃣ — Insert unique leads
     let inserted = [];
     if (newLeads.length > 0) {
       inserted = await lead.insertMany(newLeads);
     }
 
-    // Calculate totals
     const totalSkipped = duplicatesInPayload.length + duplicatesInDB.length;
 
-    // Step 6️⃣ — Return the categorized response
+    // Step 6️⃣ — Return response
     return res.status(201).json({
-      ok: newLeads.length > 0, // True if at least one was inserted
+      ok: newLeads.length > 0,
       message: `${inserted.length} new leads added, ${totalSkipped} skipped.`,
       insertedCount: inserted.length,
       skippedCount: totalSkipped,
-
-      // 🔹 The categorized skipped lists:
-      duplicatesInPayload: duplicatesInPayload,
-      duplicatesInDB: duplicatesInDB,
+      duplicatesInPayload,
+      duplicatesInDB,
     });
+
   } catch (error) {
     console.error("createLead error:", error);
     res.status(500).json({ error: error.message });
@@ -394,13 +454,11 @@ export const getAllLeads = async (req, res) => {
 // 4374122  with discoutn applied
 // 4374060  1 person 3 order
 
-export const getOrderDetails = async (req, res) => {
-  const { searchInput, email } = req.query;
-  const orderNumber = req.params.id;
-  // or req.body
+// controllers/orderController.js
 
-  console.log(searchInput);
-  console.log(email);
+export const getOrderDetails = async (req, res) => {
+  const { email } = req.query;
+  const orderNumber = req.params.id;
 
   if (!email || typeof email !== "string") {
     return res.status(400).json({
@@ -409,188 +467,78 @@ export const getOrderDetails = async (req, res) => {
     });
   }
 
-  const requestingUserDoc = await user
-    .findOne({ email: email.trim().toLowerCase() })
-    .select("role");
-
-  // Check if the user is an admin or manager (Managers usually bypass rules too, add/remove as needed)
-  const isAdmin =
-    requestingUserDoc &&
-    (requestingUserDoc.role === "admin" ||
-      requestingUserDoc.role === "manager");
-
   try {
-    // Find all leads using this order number
-    const existingLeads = await lead
-      .find({
-        orderNumber: Number(orderNumber),
-      })
-      .select("assignTo");
-
-    console.log(existingLeads);
-
-    if (existingLeads.length > 0 && !isAdmin) {
-      const uniqueAssignedUsers = [
-        ...new Set(
-          existingLeads
-            .map((lead) => lead.assignTo?.trim().toLowerCase())
-            .filter(Boolean),
-        ),
-      ];
-
-      const requestingUser = email.trim().toLowerCase();
-
-      // Business Rule:
-      // ALL leads with this order number must belong to requesting user
-      const hasMismatch = uniqueAssignedUsers.some(
-        (assignedEmail) => assignedEmail !== requestingUser,
-      );
-
-      if (hasMismatch) {
-        const mismatchedEmails = uniqueAssignedUsers.filter(
-          (assignedEmail) => assignedEmail !== requestingUser,
-        );
-
-        const users = await user
-          .find({
-            email: { $in: mismatchedEmails },
-          })
-          .select("name email");
-
-        console.log(users);
-
-        // 1. Extract the names from the array of user objects
-        const userNames = users.map((u) => u.name).join(", ");
-
+    // 🔹 0. CHECK IF ORDER NUMBER HAS ALREADY BEEN USED IN MONGO DB
+    if (orderNumber) {
+      const existingOrder = await lead.findOne({ orderNumber: Number(orderNumber) }).lean();
+      if (existingOrder) {
         return res.status(400).json({
           success: false,
-          // 2. Use backticks (`) instead of double quotes (") for string interpolation
-          message: `This order number is already assigned to ${userNames || "another counselor"}.`,
-          assignedUsers: users,
+          message: `Order #${orderNumber} has already been used.`,
+          isUsed: true,
         });
       }
     }
 
+    // 1. Fetch WooCommerce order
     const credentials = Buffer.from(
-      `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
+      `${process.env.WC_KEY}:${process.env.WC_SECRET}`
     ).toString("base64");
 
     const response = await axios.get(
-      `https://eshikhon.com.bd/wp-json/wc/v3/orders/${req.params.id}`,
+      `https://eshikhon.com.bd/wp-json/wc/v3/orders/${orderNumber}`,
       {
-        headers: {
-          Authorization: `Basic ${credentials}`,
-        },
-      },
+        headers: { Authorization: `Basic ${credentials}` },
+      }
     );
 
     const order = response.data;
 
-    console.log(order);
-    // return res.json(order)
-
     if (!order.line_items || order.line_items.length === 0) {
-      return res
-        .status(404)
-        .send({ message: "No courses found in this order" });
+      return res.status(404).send({ message: "No courses found in this order" });
     }
 
-    // 1. Helper function to clean name and determine type
-    const processItem = (item) => {
-      const rawName = item.name;
-      // Clean name: Remove everything inside and including brackets (e.g., "(Live Course)")
-      const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
+    // 2. Process ALL line items into a clean array
+    const courses = order.line_items
+      .map((item) => {
+        const rawName = item.name;
+        const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
 
-      let type = "unknown";
-      if (rawName.toLowerCase().includes("live course")) {
-        type = "Online";
-      } else if (rawName.toLowerCase().includes("offline course")) {
-        type = "Offline";
-      } else if (rawName.toLowerCase().includes("video course")) {
-        type = "Video Course"; // We will use this to filter later
-      }
-      else if (rawName.toLowerCase().includes("download link)")) {
-        type = "Download Course"; 
-      }
+        let type = "Online";
+        if (rawName.toLowerCase().includes("live course")) type = "Online";
+        else if (rawName.toLowerCase().includes("offline course")) type = "Offline";
+        else if (rawName.toLowerCase().includes("video course")) type = "Video Course";
+        else if (rawName.toLowerCase().includes("download link")) type = "Download Course";
 
-      return {
-        originalPrice: parseFloat(item.subtotal),
-        courseName: rawName, // Name as it appears in WooCommerce
-        cleanedName: cleanedName,
-        discount: parseFloat(item.subtotal) - parseFloat(item.total),
-        total: parseFloat(item.total),
-        type: type,
-      };
-    };
+        const originalPrice = parseFloat(item.subtotal || "0");
+        const total = parseFloat(item.total || "0");
+        const discount = originalPrice - total;
 
-    // 2. Process all items and filter out "video" courses
-    const allProcessedItems = order.line_items.map((item) => processItem(item));
+        return {
+          courseName: rawName,
+          cleanedName: cleanedName,
+          type: type,
+          originalPrice: originalPrice,
+          discount: discount > 0 ? discount : 0,
+          total: total,
+        };
+      })
+      .filter((c) => c.type !== "Video Course");
 
-    console.log(allProcessedItems);
-    const validItems = allProcessedItems.filter(
-      (item) => item.type !== "video",
-    );
-
-    if (validItems.length === 0) {
-      return res
-        .status(404)
-        .send({ message: "No valid Live or Offline courses found." });
-    }
-
-    // 3. Try to match with searchInput (Normalized)
-    let selectedCourse = null;
-    if (searchInput) {
-      const normalize = (str) =>
-        str
-          .toLowerCase()
-          .replace(/[^\w\s]/g, "")
-          .split(/\s+/)
-          .filter(Boolean);
-
-      const searchWords = normalize(searchInput);
-
-      selectedCourse = validItems.find((item) => {
-        const courseWords = normalize(item.cleanedName);
-
-        const matchedCount = courseWords.filter((word) =>
-          searchWords.includes(word),
-        ).length;
-
-        // % of course words found
-        return matchedCount / courseWords.length >= 0.7;
-      });
-    }
-
-    console.log(searchInput);
-    console.log(selectedCourse);
-
-    // 4. Fallback: If no match, pick the one with the highest subtotal
-    if (!selectedCourse) {
-      selectedCourse = validItems.reduce((prev, current) => {
-        return prev.originalPrice > current.originalPrice ? prev : current;
-      });
-    }
-
-    // 5. Final structure as requested
-    const result = {
-      originalPrice: selectedCourse.originalPrice.toFixed(2),
-      courseName: selectedCourse.courseName,
-      discount: selectedCourse.discount.toFixed(2),
-      total: selectedCourse.total.toFixed(2),
-      type: selectedCourse.type,
+    // 3. Return array of courses + Order metadata
+    res.json({
       status: order.status,
-      customerPhone: order.billing.phone,
+      customerPhone: order.billing?.phone || "",
       orderCompletionDate: order.date_completed,
-    };
+      courses: courses,
+    });
 
-    console.log(result);
-    res.send(result);
   } catch (error) {
-    console.log(error.message?.response?.data);
-    console.log(error?.response?.data || error?.response?.message);
-    res
-      .status(500)
-      .send(error.response?.data || { message: "Internal Server Error" });
+    console.error(error);
+    if (error.response?.status === 404) {
+      return res.status(404).json({ message: `Order #${orderNumber} not found.` });
+    }
+    res.status(500).send({ message: "Internal Server Error" });
   }
 };
 
@@ -996,8 +944,13 @@ export const updateSingleLead = async (req, res) => {
       "totalDue",
       "paidAmount",
       "paymentDate",
+      "courses",
       "refundAmount",
       "discountUnit", // <--- Added these so they don't appear in leftovers
+       "originalPrice",    // 🔹 ADDED: Prevents "set original price to 0" log
+      "leadDiscount",     // 🔹 ADDED: Prevents "set lead discount" log
+      "discountedPrice",  // 🔹 ADDED
+      "discountSource",   // 🔹 ADDED
     ];
 
     // 2. DETECT CHANGES
@@ -1088,29 +1041,46 @@ export const updateSingleLead = async (req, res) => {
     }
 
     // SCENARIO D: STATUS + FOLLOW UP
+    // 🔹 SCENARIO D: STATUS + FOLLOW UP (Fixed "Not Set" bug)
     if (changedFields["leadStatus"] && changedFields["followUpDate"]) {
       const newStatus = changedFields["leadStatus"].new;
       const newDate = changedFields["followUpDate"].new;
-      storyParts.push(
-        `changed status to "${newStatus}" and set follow-up for ${newDate}`,
-      );
+      const oldDate = changedFields["followUpDate"].old;
+
+      if (newDate) {
+        storyParts.push(
+          `changed status to "${newStatus}" and set follow-up for ${newDate}`
+        );
+      } else if (oldDate) {
+        storyParts.push(
+          `changed status to "${newStatus}" and cleared follow-up date`
+        );
+      } else {
+        storyParts.push(
+          `changed status to "${newStatus}"`
+        );
+      }
 
       handledKeys.add("leadStatus");
       handledKeys.add("followUpDate");
     }
 
-    // SCENARIO E: LEFTOVERS
+    // 🔹 SCENARIO E: LEFTOVERS (Fixed "Not Set" bug)
     for (const key in changedFields) {
       if (handledKeys.has(key)) continue;
 
       const { old: oldVal, new: newVal } = changedFields[key];
       const readableKey = key.replace(/([A-Z])/g, " $1").trim();
 
-      if (!oldVal || oldVal === "Not Set") {
+      if (!newVal) {
+        if (oldVal) {
+          storyParts.push(`cleared ${readableKey}`);
+        }
+      } else if (!oldVal) {
         storyParts.push(`set ${readableKey} to "${newVal}"`);
       } else {
         storyParts.push(
-          `changed ${readableKey} from "${oldVal}" to "${newVal}"`,
+          `changed ${readableKey} from "${oldVal}" to "${newVal}"`
         );
       }
     }
@@ -1191,7 +1161,7 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
   // Assign Date filters
   // ------------------------
   if (type === "Today") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
+    start = new Date(localNow.setHours(0, 0, 0, 0));  
     end = new Date(localNow.setHours(23, 59, 59, 999));
   }
 

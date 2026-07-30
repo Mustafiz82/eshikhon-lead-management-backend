@@ -15,14 +15,22 @@ export const createCource = async (req, res) => {
 };
 
 /** List (with pagination, search, sort) */
+/** List (with pagination, search, sort) */
 export const listCources = async (req, res) => {
   try {
     const { page, limit, sort = "Default", q = "", type } = req.query;
 
     // Build filter
     const filter = {};
-    if (q) filter.name = { $regex: q, $options: "i" };
-    if (type) filter.type = type;
+    if (q) {
+      filter.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { code: { $regex: q, $options: "i" } },
+      ];
+    }
+    
+    // 🔥 FIX: Filter inside allowedTypes array
+    if (type) filter.allowedTypes = type;
 
     // Define fixed sort logic
     let sortOption = {};
@@ -33,12 +41,6 @@ export const listCources = async (req, res) => {
       case "Name (Descending)":
         sortOption = { name: -1 };
         break;
-      case "Price (Ascending)":
-        sortOption = { price: 1 };
-        break;
-      case "Price (Descending)":
-        sortOption = { price: -1 };
-        break;
       default:
         sortOption = { createdAt: -1 }; // Default → newest first
     }
@@ -46,7 +48,6 @@ export const listCources = async (req, res) => {
     const hasPagination = page !== undefined && limit !== undefined;
 
     if (hasPagination) {
-      // Pagination mode
       const pageNum = Math.max(1, Number(page));
       const lim = Math.min(100, Math.max(1, Number(limit)));
       const skip = (pageNum - 1) * lim;
@@ -65,7 +66,6 @@ export const listCources = async (req, res) => {
       });
     }
 
-    // Non-pagination mode
     const items = await course.find(filter).sort(sortOption);
     return res.json({ items, total: items.length });
   } catch (err) {
@@ -87,19 +87,20 @@ export const getCourceById = async (req, res) => {
 };
 
 /** Update (partial or full) */
+
 export const updateCource = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Only allow known fields
-    const allowed = ["name", "type", "regularPrice" , "price", "code"];
+    // 🔥 FIX: Only allow known new fields
+    const allowed = ["name", "code", "allowedTypes"];
     const payload = Object.fromEntries(
       Object.entries(req.body || {}).filter(([k]) => allowed.includes(k)),
     );
 
     const cource = await course.findByIdAndUpdate(id, payload, {
       new: true,
-      runValidators: true, // <-- rely on Mongoose validators
+      runValidators: true,
     });
     if (!cource) return res.status(404).json({ error: "course not found" });
     return res.json(cource);
