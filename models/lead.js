@@ -9,7 +9,7 @@
             "Offline",
             "Video Course",
             "Download Course",
-            "Free course",
+            "Free Course",
             "Both",
             "Not Specified",
           ],

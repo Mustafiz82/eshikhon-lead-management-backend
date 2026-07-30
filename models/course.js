@@ -11,7 +11,7 @@ const courseSchema = new mongoose.Schema(
       type: String, 
       trim: true 
     },
-    type: [
+    allowedTypes: [
       {
         type: String,
         enum: [

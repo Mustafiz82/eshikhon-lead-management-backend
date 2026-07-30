@@ -4,7 +4,6 @@ import course from "../models/course.js";
 import user from "../models/user.js";
 import axios from "axios";
 
-
 export const createLead = async (req, res) => {
   try {
     let leads = Array.isArray(req.body) ? req.body : [req.body];
@@ -37,7 +36,7 @@ export const createLead = async (req, res) => {
 
     // Step 2️⃣ — Remove duplicates inside the SAME upload payload
     const seenPairs = new Set();
-    const seenOrderNumbers = new Set(); // 🔹 Track seen order numbers in payload
+    const seenOrderNumbers = new Set(); // Track seen order numbers in payload
 
     for (const l of leads) {
       const courseNames = getCourseNames(l);
@@ -72,7 +71,7 @@ export const createLead = async (req, res) => {
 
     // Step 3️⃣ — Find which unique candidates ALREADY exist in DB
     let existingPairs = new Set();
-    let existingOrderNumbers = new Set(); // 🔹 Track existing order numbers in DB
+    let existingOrderNumbers = new Set(); // Track existing order numbers in DB
 
     if (uniqueIncoming.length > 0) {
       const incomingOrderNumbers = uniqueIncoming
@@ -98,7 +97,10 @@ export const createLead = async (req, res) => {
       }
 
       const existing = await lead
-        .find({ $or: mongoQuery }, { phone: 1, interstedCourse: 1, courses: 1, orderNumber: 1 })
+        .find(
+          { $or: mongoQuery },
+          { phone: 1, interstedCourse: 1, courses: 1, orderNumber: 1 }
+        )
         .lean();
 
       existing.forEach((e) => {
@@ -109,12 +111,16 @@ export const createLead = async (req, res) => {
 
         // Collect DB Phone + Course pairs
         if (e.interstedCourse) {
-          existingPairs.add(`${e.phone}__${e.interstedCourse.trim().toLowerCase()}`);
+          existingPairs.add(
+            `${e.phone}__${e.interstedCourse.trim().toLowerCase()}`
+          );
         }
         if (Array.isArray(e.courses)) {
           e.courses.forEach((c) => {
             if (c.courseName) {
-              existingPairs.add(`${e.phone}__${c.courseName.trim().toLowerCase()}`);
+              existingPairs.add(
+                `${e.phone}__${c.courseName.trim().toLowerCase()}`
+              );
             }
           });
         }
@@ -132,7 +138,9 @@ export const createLead = async (req, res) => {
       );
 
       // Check if order number already exists in DB
-      const isOrderDuplicate = Boolean(l.orderNumber && existingOrderNumbers.has(l.orderNumber));
+      const isOrderDuplicate = Boolean(
+        l.orderNumber && existingOrderNumbers.has(l.orderNumber)
+      );
 
       if (isCourseDuplicate || isOrderDuplicate) {
         duplicatesInDB.push(l);
@@ -141,24 +149,77 @@ export const createLead = async (req, res) => {
       }
     }
 
-    // Step 5️⃣ — Insert unique leads
+    // Step 5️⃣ — Insert unique leads (using { ordered: false } to continue on errors)
     let inserted = [];
+    const failedInsertions = [];
+
     if (newLeads.length > 0) {
-      inserted = await lead.insertMany(newLeads);
+      try {
+        inserted = await lead.insertMany(newLeads, { ordered: false });
+      } catch (insertError) {
+        // Collect docs successfully inserted despite errors
+        if (insertError.insertedDocs) {
+          inserted = insertError.insertedDocs;
+        }
+
+        // Collect write/validation errors
+        if (insertError.writeErrors && Array.isArray(insertError.writeErrors)) {
+          insertError.writeErrors.forEach((we) => {
+            const failedLead = newLeads[we.index];
+            if (failedLead) {
+              failedInsertions.push({
+                phone: failedLead.phone || "N/A",
+                reason: `DB Error: ${we.errmsg || insertError.message}`,
+                data: failedLead,
+              });
+            }
+          });
+        } else {
+          // Generic fallback for uninserted leads
+          const insertedPhoneSet = new Set(
+            inserted.map((i) => String(i.phone))
+          );
+          newLeads.forEach((l) => {
+            if (!insertedPhoneSet.has(String(l.phone))) {
+              failedInsertions.push({
+                phone: l.phone || "N/A",
+                reason: insertError.message || "Insertion failed",
+                data: l,
+              });
+            }
+          });
+        }
+      }
     }
 
-    const totalSkipped = duplicatesInPayload.length + duplicatesInDB.length;
+    // Step 6️⃣ — Consolidate ALL non-inserted leads into a detailed log array
+    const notInsertedLeads = [
+      ...duplicatesInPayload.map((l) => ({
+        phone: l.phone || "N/A",
+        reason: "Duplicate in upload payload",
+        data: l,
+      })),
+      ...duplicatesInDB.map((l) => ({
+        phone: l.phone || "N/A",
+        reason: "Already exists in database (Phone+Course or Order Number)",
+        data: l,
+      })),
+      ...failedInsertions,
+    ];
 
-    // Step 6️⃣ — Return response
+    const totalSkipped = notInsertedLeads.length;
+
+    // Step 7️⃣ — Return response with full logs
     return res.status(201).json({
-      ok: newLeads.length > 0,
-      message: `${inserted.length} new leads added, ${totalSkipped} skipped.`,
+      ok: inserted.length > 0,
+      message: `${inserted.length} new leads added, ${totalSkipped} skipped/failed.`,
       insertedCount: inserted.length,
       skippedCount: totalSkipped,
+      notInsertedLeads, // 👈 Detailed logs of ALL non-inserted leads with phone & data
       duplicatesInPayload,
       duplicatesInDB,
+      failedInsertions,
     });
-
   } catch (error) {
     console.error("createLead error:", error);
     res.status(500).json({ error: error.message });
@@ -210,6 +271,7 @@ export const getAllLeads = async (req, res) => {
     const {
       status,
       course,
+      courseType, // 1. Added courseType to query parameters
       search,
       sort,
       interstedSeminar,
@@ -236,18 +298,6 @@ export const getAllLeads = async (req, res) => {
       missedFollowUpDate,
     } = req.query;
 
-    // console.log(
-    //   showOnlyFollowups,
-    //   status,
-    //   course,
-    //   search,
-    //   sort,
-    //   limit,
-    //   currentPage,
-    //   createdBy,
-    //   assignTo,
-    // );
-
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
     const paymentStartDateFormat = new Date(paymentStartDate);
@@ -262,10 +312,6 @@ export const getAllLeads = async (req, res) => {
       paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
 
-    // console.log(paymentEndDateFormat);
-    // console.log(paymentEndDate);
-    // console.log(orderEndDate);
-
     const filter = {};
     let sortOption;
 
@@ -273,8 +319,18 @@ export const getAllLeads = async (req, res) => {
       filter.assignStatus = status;
     }
 
-    if (course && course !== "All") {
-      filter.interstedCourse = course;
+    // 2. Added course and courseType filter using $elemMatch for subdocuments array
+    if ((course && course !== "All") || (courseType && courseType !== "All")) {
+      const courseFilter = {};
+
+      if (course && course !== "All") {
+        courseFilter.courseName = course;
+      }
+      if (courseType && courseType !== "All") {
+        courseFilter.courseType = courseType;
+      }
+
+      filter.courses = { $elemMatch: courseFilter };
     }
 
     if (search) {
@@ -319,7 +375,6 @@ export const getAllLeads = async (req, res) => {
     }
 
     if (assignStartDate && assignEndDate) {
-      // const { start, end } = getDateRange(assignDate, "assign");
       filter.assignDate = {
         $gte: assignStartDateFormat,
         $lte: assignEndDateFormat,
@@ -350,7 +405,6 @@ export const getAllLeads = async (req, res) => {
 
     if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
       if (upcomingPaymentsDate === "All") {
-        // If "All" is selected, find all leads with a payment date from today onwards.
         const now = new Date();
         const localNow = new Date(
           now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
@@ -362,7 +416,6 @@ export const getAllLeads = async (req, res) => {
           $gte: startOfToday,
         };
       } else {
-        // This handles all other date ranges: "Today", "Next 7 Days", "Pick a date", etc.
         const { start, end } = getDateRange(upcomingPaymentsDate, "followup");
         if (start && end) {
           filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
@@ -379,7 +432,7 @@ export const getAllLeads = async (req, res) => {
       filter.followUpDate = {
         $exists: true,
         $ne: null,
-        $lt: bdNow, // strictly before current date-time
+        $lt: bdNow,
       };
     }
 
@@ -392,17 +445,9 @@ export const getAllLeads = async (req, res) => {
       filter.nextEstimatedPaymentDate = {
         $exists: true,
         $ne: null,
-        $lt: bdNow, // strictly before current date-time
+        $lt: bdNow,
       };
     }
-
-    // if (missedFollowUpDate && missedFollowUpDate !== "All") {
-    //   const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
-    //   if (start && end) {
-    //     followFilter.$gte = start;
-    //     followFilter.$lte = end;
-    //   }
-    // }
 
     if (lock && lock !== "All") {
       filter.isLocked = lock == "Locked" ? true : false;
@@ -419,21 +464,18 @@ export const getAllLeads = async (req, res) => {
     } else if (sort === "Last Modified") {
       sortOption = { updatedAt: -1, _id: -1 };
     } else {
-      // Default (stable, newest first)
       sortOption = { createdAt: -1, _id: -1 };
     }
 
     let projection = null;
     if (fields === "table") {
       projection =
-        "_id name email phone address interstedCourse leadStatus assignStatus createdAt isLocked interstedCourseType";
+        "_id name email phone address interstedCourse leadStatus assignStatus createdAt isLocked interstedCourseType courses";
     }
 
     console.log(filter);
 
     const skip = (limit ? limit : 50) * ((currentPage ? currentPage : 1) - 1);
-
-    console.log(status, course, search, sort, limit, currentPage);
 
     const leadRes = await lead
       .find(filter, projection)
@@ -442,7 +484,6 @@ export const getAllLeads = async (req, res) => {
       .skip(skip)
       .limit(limit ? limit : 50)
       .lean();
-    // console.log(leadRes)
 
     res.status(200).json(leadRes);
   } catch (error) {
@@ -468,9 +509,22 @@ export const getOrderDetails = async (req, res) => {
   }
 
   try {
-    // 🔹 0. CHECK IF ORDER NUMBER HAS ALREADY BEEN USED IN MONGO DB
-    if (orderNumber) {
-      const existingOrder = await lead.findOne({ orderNumber: Number(orderNumber) }).lean();
+    // Check current user's role
+    const currentUser = await user
+      .findOne({ email: req.user.email.toLowerCase() }, { role: 1 })
+      .lean();
+
+    const isAdmin =
+      currentUser?.role === "admin" || currentUser?.role === "manager";
+
+    // 0. Prevent duplicate order unless admin is just checking
+    if (orderNumber && !isAdmin) {
+      const existingOrder = await lead
+        .findOne({
+          orderNumber: Number(orderNumber),
+        })
+        .lean();
+
       if (existingOrder) {
         return res.status(400).json({
           success: false,
@@ -480,65 +534,85 @@ export const getOrderDetails = async (req, res) => {
       }
     }
 
-    // 1. Fetch WooCommerce order
+    // Fetch WooCommerce order
     const credentials = Buffer.from(
-      `${process.env.WC_KEY}:${process.env.WC_SECRET}`
+      `${process.env.WC_KEY}:${process.env.WC_SECRET}`,
     ).toString("base64");
 
     const response = await axios.get(
       `https://eshikhon.com.bd/wp-json/wc/v3/orders/${orderNumber}`,
       {
-        headers: { Authorization: `Basic ${credentials}` },
-      }
+        headers: {
+          Authorization: `Basic ${credentials}`,
+        },
+      },
     );
 
     const order = response.data;
 
-    if (!order.line_items || order.line_items.length === 0) {
-      return res.status(404).send({ message: "No courses found in this order" });
+    // Normal users can only view their own orders
+    if (!isAdmin) {
+      const orderEmail = order.billing?.email?.toLowerCase() || "";
+
+      if (orderEmail !== email.toLowerCase()) {
+        return res.status(403).json({
+          success: false,
+          message: "This order does not belong to this customer.",
+        });
+      }
     }
 
-    // 2. Process ALL line items into a clean array
+    if (!order.line_items?.length) {
+      return res.status(404).json({
+        message: "No courses found in this order",
+      });
+    }
+
     const courses = order.line_items
       .map((item) => {
         const rawName = item.name;
         const cleanedName = rawName.replace(/\s*\(.*?\)\s*/g, "").trim();
 
         let type = "Online";
-        if (rawName.toLowerCase().includes("live course")) type = "Online";
-        else if (rawName.toLowerCase().includes("offline course")) type = "Offline";
-        else if (rawName.toLowerCase().includes("video course")) type = "Video Course";
-        else if (rawName.toLowerCase().includes("download link")) type = "Download Course";
+        if (rawName.toLowerCase().includes("offline course")) type = "Offline";
+        else if (rawName.toLowerCase().includes("video course"))
+          type = "Video Course";
+        else if (rawName.toLowerCase().includes("download link"))
+          type = "Download Course";
 
         const originalPrice = parseFloat(item.subtotal || "0");
         const total = parseFloat(item.total || "0");
-        const discount = originalPrice - total;
+        const discount = Math.max(originalPrice - total, 0);
 
         return {
           courseName: rawName,
-          cleanedName: cleanedName,
-          type: type,
-          originalPrice: originalPrice,
-          discount: discount > 0 ? discount : 0,
-          total: total,
+          cleanedName,
+          type,
+          originalPrice,
+          discount,
+          total,
         };
       })
       .filter((c) => c.type !== "Video Course");
 
-    // 3. Return array of courses + Order metadata
     res.json({
       status: order.status,
       customerPhone: order.billing?.phone || "",
       orderCompletionDate: order.date_completed,
-      courses: courses,
+      courses,
     });
-
   } catch (error) {
     console.error(error);
+
     if (error.response?.status === 404) {
-      return res.status(404).json({ message: `Order #${orderNumber} not found.` });
+      return res.status(404).json({
+        message: `Order #${orderNumber} not found.`,
+      });
     }
-    res.status(500).send({ message: "Internal Server Error" });
+
+    res.status(500).json({
+      message: "Internal Server Error",
+    });
   }
 };
 
@@ -574,17 +648,17 @@ export const getLeadSources = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 export const getInterestedCourses = async (req, res) => {
   try {
     console.log("hit /getInterestedCourses");
 
     const { agentEmail } = req.query;
 
+    // Filter leads that have at least one course in the array
     const leadMatch = {
-      interstedCourse: {
+      "courses.courseName": {
         $exists: true,
-        $nin: [null, "", "not provided"],
+        $nin: [null, "", "not provided", "Not Provided"],
       },
     };
 
@@ -595,14 +669,30 @@ export const getInterestedCourses = async (req, res) => {
 
     const [leadCourses, dbCourses] = await Promise.all([
       lead.aggregate([
+        // Step 1: Match leads matching agent and containing course data
         {
           $match: leadMatch,
         },
+        // Step 2: Unwind the courses array
         {
-          $group: {
-            _id: "$interstedCourse",
+          $unwind: "$courses",
+        },
+        // Step 3: Match valid courseName inside unwound array elements
+        {
+          $match: {
+            "courses.courseName": {
+              $exists: true,
+              $nin: [null, "", "not provided", "Not Provided"],
+            },
           },
         },
+        // Step 4: Group by unique courseName
+        {
+          $group: {
+            _id: "$courses.courseName",
+          },
+        },
+        // Step 5: Format output to match { name: "Course Name" }
         {
           $project: {
             _id: 0,
@@ -611,14 +701,19 @@ export const getInterestedCourses = async (req, res) => {
         },
       ]),
 
+      // Fetch master courses list from Course model
       course.find({}, { name: 1, _id: 0 }),
     ]);
 
-    const leadCourseNames = leadCourses.map((item) => item.name);
-    const dbCourseNames = dbCourses.map((item) => item.name);
+    const leadCourseNames = leadCourses
+      .map((item) => item.name)
+      .filter(Boolean);
+    const dbCourseNames = dbCourses.map((item) => item.name).filter(Boolean);
 
+    // Merge and remove duplicates
     const uniqueCourses = [...new Set([...leadCourseNames, ...dbCourseNames])];
 
+    // Sort alphabetically
     uniqueCourses.sort();
 
     res.status(200).json(uniqueCourses);
@@ -683,7 +778,7 @@ export const getLeadsCount = async (req, res) => {
 
     // 2. Course
     if (course && course !== "All") {
-      filter.interstedCourse = course;
+      filter["courses.courseName"] = course;
     }
 
     // 3. Search
@@ -919,15 +1014,14 @@ export const updateSingleLead = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
 
-    console.log(data);
-    const updates = { ...data, lastContacted: Date.now() };
+    const updates = { ...data, };
 
     const leadDoc = await lead.findById(id);
     if (!leadDoc) return res.status(404).json({ message: "Lead not found" });
 
     const currentUser = updates.lastModifiedBy || "Unknown User";
 
-    // 1. IGNORE LIST (Expanded to prevent "set paid Amount..." logs)
+    // 1. IGNORE LIST (Removed "courses" from ignore list so we can track course changes)
     const ignoredFields = [
       "_id",
       "createdAt",
@@ -935,8 +1029,7 @@ export const updateSingleLead = async (req, res) => {
       "__v",
       "history",
       "note",
-      "callCount",
-      "lastContacted",
+
       "lastModifiedBy",
       "enrolledAt",
       "sourceFileName",
@@ -944,16 +1037,33 @@ export const updateSingleLead = async (req, res) => {
       "totalDue",
       "paidAmount",
       "paymentDate",
-      "courses",
       "refundAmount",
-      "discountUnit", // <--- Added these so they don't appear in leftovers
-       "originalPrice",    // 🔹 ADDED: Prevents "set original price to 0" log
-      "leadDiscount",     // 🔹 ADDED: Prevents "set lead discount" log
-      "discountedPrice",  // 🔹 ADDED
-      "discountSource",   // 🔹 ADDED
+      "discountUnit",
+      "originalPrice",
+      "leadDiscount",
+      "discountedPrice",
+      "discountSource",
+      "courses", // <--- Handled separately below
     ];
 
-    // 2. DETECT CHANGES
+    // ALL Date fields in schema
+    const dateFields = [
+      "followUpDate",
+      "assignDate",
+      "nextEstimatedPaymentDate",
+      "firstContacted",
+      "lastContacted",
+      "enrolledAt",
+    ];
+
+    // Helper to safely compare dates
+    const normalizeDate = (val) => {
+      if (!val) return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0]; // compares YYYY-MM-DD
+    };
+
+    // 2. DETECT STANDARD & DATE FIELD CHANGES
     const changedFields = {};
     for (const key in updates) {
       if (ignoredFields.includes(key)) continue;
@@ -961,55 +1071,97 @@ export const updateSingleLead = async (req, res) => {
       const oldValue = leadDoc[key];
       const newValue = updates[key];
 
-      // Date Comparison
-      if (
-        key === "followUpDate" ||
-        key === "assignDate" ||
-        key === "nextEstimatedPaymentDate"
-      ) {
-        const d1 = oldValue
-          ? new Date(oldValue).toISOString().split("T")[0]
-          : null;
-        const d2 = newValue
-          ? new Date(newValue).toISOString().split("T")[0]
-          : null;
+      // Robust Date Comparison for ALL date fields
+      if (dateFields.includes(key)) {
+        const d1 = normalizeDate(oldValue);
+        const d2 = normalizeDate(newValue);
+
         if (d1 !== d2) {
           changedFields[key] = { old: d1 || "Not Set", new: d2 || "Not Set" };
         }
         continue;
       }
 
-      // Standard Comparison
+      // Standard Field Comparison
       if (newValue !== undefined && oldValue != newValue) {
         changedFields[key] = { old: oldValue, new: newValue };
       }
     }
 
     // ======================================================
-    // 3. STORY FRAGMENTS ACCUMULATOR
+    // 3. DETECT COURSE CHANGES
+    // ======================================================
+    const courseStoryParts = [];
+    if (Array.isArray(updates.courses)) {
+      const oldCourses = leadDoc.courses || [];
+      const newCourses = updates.courses;
+
+      // Check for added/removed/modified courses
+      const oldCourseMap = new Map(
+        oldCourses.map((c) => [c.courseName?.trim().toLowerCase(), c]),
+      );
+      const newCourseMap = new Map(
+        newCourses.map((c) => [c.courseName?.trim().toLowerCase(), c]),
+      );
+
+      // Added courses
+      for (const [name, newC] of newCourseMap.entries()) {
+        if (!oldCourseMap.has(name)) {
+          courseStoryParts.push(
+            `added course "${newC.courseName}" (${newC.courseType || "Not Specified"}, Price: ${newC.originalPrice || 0})`,
+          );
+        } else {
+          // Modified course details
+          const oldC = oldCourseMap.get(name);
+          const changes = [];
+          if (oldC.originalPrice !== newC.originalPrice) {
+            changes.push(
+              `price: ${oldC.originalPrice || 0} → ${newC.originalPrice || 0}`,
+            );
+          }
+          if (oldC.leadDiscount !== newC.leadDiscount) {
+            changes.push(
+              `discount: ${oldC.leadDiscount || 0} → ${newC.leadDiscount || 0}`,
+            );
+          }
+          if (oldC.courseType !== newC.courseType) {
+            changes.push(`type: "${oldC.courseType}" → "${newC.courseType}"`);
+          }
+          if (changes.length > 0) {
+            courseStoryParts.push(
+              `updated course "${newC.courseName}" (${changes.join(", ")})`,
+            );
+          }
+        }
+      }
+
+      // Removed courses
+      for (const [name, oldC] of oldCourseMap.entries()) {
+        if (!newCourseMap.has(name)) {
+          courseStoryParts.push(`removed course "${oldC.courseName}"`);
+        }
+      }
+    }
+
+    // ======================================================
+    // 4. STORY FRAGMENTS ACCUMULATOR
     // ======================================================
     const storyParts = [];
     const handledKeys = new Set();
 
     // SCENARIO A: ENROLLMENT
     if (changedFields["leadStatus"] && updates.leadStatus === "Enrolled") {
-      // Smarter Price Logic: Look at updates first, then DB. Prefer Discounted, fallback to Original.
-      const price =
-        updates.discountedPrice ||
-        updates.originalPrice ||
-        leadDoc.discountedPrice ||
-        leadDoc.originalPrice ||
-        0;
+      const firstCourse = updates.courses?.[0] || leadDoc.courses?.[0];
+      const price = updates.discountedPrice || firstCourse?.originalPrice || 0;
       const paid = Number(updates.paidAmount) || 0;
       const due = updates.nextEstimatedPaymentDate
-        ? new Date(updates.nextEstimatedPaymentDate).toISOString().split("T")[0]
+        ? normalizeDate(updates.nextEstimatedPaymentDate)
         : "N/A";
 
       storyParts.push(
         `enrolled the student (Price: ${price}, Paid: ${paid}, Next Due: ${due})`,
       );
 
-      // Mark ALL enrollment-related fields as handled so they don't duplicate
       const enrollmentFields = [
         "leadStatus",
         "originalPrice",
@@ -1031,7 +1183,7 @@ export const updateSingleLead = async (req, res) => {
         `marked lead as Refunded and processed refund of ${refAmt}`,
       );
       handledKeys.add("leadStatus");
-      handledKeys.add("refundAmount"); // Technically ignored in loop, but good safety
+      handledKeys.add("refundAmount");
     }
 
     // SCENARIO C: PAYMENT ONLY
@@ -1041,52 +1193,54 @@ export const updateSingleLead = async (req, res) => {
     }
 
     // SCENARIO D: STATUS + FOLLOW UP
-    // 🔹 SCENARIO D: STATUS + FOLLOW UP (Fixed "Not Set" bug)
     if (changedFields["leadStatus"] && changedFields["followUpDate"]) {
       const newStatus = changedFields["leadStatus"].new;
       const newDate = changedFields["followUpDate"].new;
       const oldDate = changedFields["followUpDate"].old;
 
-      if (newDate) {
+      if (newDate && newDate !== "Not Set") {
         storyParts.push(
-          `changed status to "${newStatus}" and set follow-up for ${newDate}`
+          `changed status to "${newStatus}" and set follow-up for ${newDate}`,
         );
       } else if (oldDate) {
         storyParts.push(
-          `changed status to "${newStatus}" and cleared follow-up date`
+          `changed status to "${newStatus}" and cleared follow-up date`,
         );
       } else {
-        storyParts.push(
-          `changed status to "${newStatus}"`
-        );
+        storyParts.push(`changed status to "${newStatus}"`);
       }
 
       handledKeys.add("leadStatus");
       handledKeys.add("followUpDate");
     }
 
-    // 🔹 SCENARIO E: LEFTOVERS (Fixed "Not Set" bug)
+    // Add Course changes into story
+    if (courseStoryParts.length > 0) {
+      storyParts.push(...courseStoryParts);
+    }
+
+    // SCENARIO E: LEFTOVERS
     for (const key in changedFields) {
       if (handledKeys.has(key)) continue;
 
       const { old: oldVal, new: newVal } = changedFields[key];
       const readableKey = key.replace(/([A-Z])/g, " $1").trim();
 
-      if (!newVal) {
-        if (oldVal) {
+      if (!newVal || newVal === "Not Set") {
+        if (oldVal && oldVal !== "Not Set") {
           storyParts.push(`cleared ${readableKey}`);
         }
-      } else if (!oldVal) {
+      } else if (!oldVal || oldVal === "Not Set") {
         storyParts.push(`set ${readableKey} to "${newVal}"`);
       } else {
         storyParts.push(
-          `changed ${readableKey} from "${oldVal}" to "${newVal}"`
+          `changed ${readableKey} from "${oldVal}" to "${newVal}"`,
         );
       }
     }
 
     // ======================================================
-    // 4. GENERATE THE SINGLE NOTE
+    // 5. GENERATE THE SINGLE NOTE
     // ======================================================
     if (storyParts.length > 0) {
       const finalMessage = `${storyParts.join(".\n\n")}.`;
@@ -1097,7 +1251,7 @@ export const updateSingleLead = async (req, res) => {
     }
 
     // ======================================================
-    // 5. APPLY UPDATES TO DB
+    // 6. APPLY UPDATES TO DB
     // ======================================================
     for (const key in updates) {
       if (key === "note" || key === "paidAmount") continue;
@@ -1105,16 +1259,6 @@ export const updateSingleLead = async (req, res) => {
     }
 
     if (incomingPayment > 0) {
-      // Check if frontend sent a date, otherwise use current time
-      // const txDate = updates.paymentDate
-      //   ? new Date(updates.paymentDate)
-      //   : new Date();
-
-      // const paymentEntry = {
-      //   paidAmount: incomingPayment,
-      //   date: txDate, // <--- Use the variable here
-      // };
-
       const isFirstPayment =
         !Array.isArray(leadDoc.history) || leadDoc.history.length === 0;
 
@@ -1130,9 +1274,6 @@ export const updateSingleLead = async (req, res) => {
 
       leadDoc.totalPaid = (leadDoc.totalPaid || 0) + incomingPayment;
       leadDoc.history.push(paymentEntry);
-
-      // Optional: If you want to sort history by date after adding manual dates
-      // leadDoc.history.sort((a, b) => new Date(a.date) - new Date(b.date));
     }
 
     if (updates.note && updates.note.length > 0) {
@@ -1161,7 +1302,7 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
   // Assign Date filters
   // ------------------------
   if (type === "Today") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));  
+    start = new Date(localNow.setHours(0, 0, 0, 0));
     end = new Date(localNow.setHours(23, 59, 59, 999));
   }
 

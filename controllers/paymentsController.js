@@ -833,18 +833,19 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
 
     {
       $facet: {
-        // 1) Payments: Excludes "Enrolled with Other Number" leads (case-insensitive)
+        // 1) Payments: now sourced from courses[].history, not top-level history
         monthlyPayments: [
           {
             $match: {
               $expr: { $ne: [{ $toLower: { $ifNull: ["$leadStatus", ""] } }, "enrolled with other number"] }
             }
           },
-          { $unwind: { path: "$history", preserveNullAndEmptyArrays: false } },
+          { $unwind: { path: "$courses", preserveNullAndEmptyArrays: false } },
+          { $unwind: { path: "$courses.history", preserveNullAndEmptyArrays: false } },
           {
             $addFields: {
-              paymentDateObj: { $toDate: "$history.date" },
-              paidAmountD: { $toDouble: "$history.paidAmount" },
+              paymentDateObj: { $toDate: "$courses.history.date" },
+              paidAmountD: { $toDouble: { $ifNull: ["$courses.history.paidAmount", 0] } },
             },
           },
           {
@@ -862,7 +863,7 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
           },
         ],
 
-        // 2) Refunds: Excludes "Enrolled with Other Number" leads (case-insensitive)
+        // 2) Refunds: unchanged — refundAmount only ever lived at lead level
         monthlyRefunds: [
           {
             $match: {
@@ -938,7 +939,6 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
       },
     },
 
-    // Calculate Net Sales (Ensuring they don't drop below 0)
     {
       $addFields: {
         totalSales: {
@@ -947,7 +947,6 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
       },
     },
 
-    // Lookup User Data
     {
       $lookup: {
         from: user.collection.name,

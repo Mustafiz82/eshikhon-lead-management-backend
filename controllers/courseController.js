@@ -98,6 +98,8 @@ export const updateCource = async (req, res) => {
       Object.entries(req.body || {}).filter(([k]) => allowed.includes(k)),
     );
 
+    console.log(payload)
+
     const cource = await course.findByIdAndUpdate(id, payload, {
       new: true,
       runValidators: true,

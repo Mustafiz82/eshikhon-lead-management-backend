@@ -174,6 +174,596 @@ export const getLeaderboards = async (req, res) => {
   }
 };
 
+
+
+export const getAgentleadState = async (req, res) => {
+  try {
+    const { email, id } = req.query;
+    const month = parseInt(req.query.month);
+    const year = parseInt(req.query.year);
+
+    if (!month || !year) {
+      return res.status(400).json({ error: "Month and Year are required" });
+    }
+
+    let targetEmail = email;
+    let targetId = id;
+
+    if (req.user.role !== "admin") {
+      targetEmail = req.user.email;
+      targetId = req.user.id;
+    }
+
+    const startOfMonth = new Date(req.query.startDate);
+    const endOfMonth = new Date(req.query.endDate);
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const superMatch = {
+      $or: [
+        { assignDate: { $gte: startOfMonth, $lt: endOfMonth } },
+        { lastContacted: { $gte: startOfMonth, $lt: endOfMonth } },
+        { lastContacted: { $gte: startOfToday, $lt: endOfToday } },
+        { followUpDate: { $gte: startOfMonth, $lt: endOfMonth } },
+        { enrolledAt: { $gte: startOfMonth, $lt: endOfMonth } },
+        // NEW: payments now live inside courses[], so we must also
+        // catch leads whose only qualifying activity is a course payment
+        { "courses.history.date": { $gte: startOfMonth, $lt: endOfMonth } },
+      ],
+    };
+
+    if (targetEmail) superMatch.assignTo = targetEmail;
+
+    const connectedStatuses = [
+      "Enrolled",
+      "Will Join on Seminar",
+      "Joined on seminar",
+      "Not Interested",
+      "Enrolled in Other Institute",
+      "Enrolled with Other Number",
+      "Call declined",
+      "Call later",
+      "Will Register",
+      "Already Enrolled",
+      "On hold",
+    ];
+
+    const unreachableStatuses = [
+      "call declined",
+      "Call Not Received",
+      "Number Off or Busy",
+      "Wrong Number",
+    ];
+
+    // Helper aggregation expression: sum of paidAmount across ALL courses'
+    // history entries whose date falls inside [startOfMonth, endOfMonth)
+    const sumCourseHistoryInMonth = {
+      $reduce: {
+        input: { $ifNull: ["$courses", []] },
+        initialValue: 0,
+        in: {
+          $add: [
+            "$$value",
+            {
+              $reduce: {
+                input: {
+                  $filter: {
+                    input: { $ifNull: ["$$this.history", []] },
+                    as: "p",
+                    cond: {
+                      $let: {
+                        vars: {
+                          pDate: {
+                            $convert: {
+                              input: "$$p.date",
+                              to: "date",
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                        },
+                        in: {
+                          $and: [
+                            { $ne: ["$$pDate", null] },
+                            { $gte: ["$$pDate", startOfMonth] },
+                            { $lt: ["$$pDate", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+                initialValue: 0,
+                in: {
+                  $add: [
+                    "$$value",
+                    {
+                      $convert: {
+                        input: "$$this.paidAmount",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const aggregatedUsers = await Lead.aggregate([
+      { $match: superMatch },
+
+      {
+        $group: {
+          _id: "$assignTo",
+
+          leadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // totalDue: now summed across every course on the lead,
+          // using each course's own originalPrice/discount/history
+          totalDue: {
+            $sum: {
+              $cond: [
+                { $eq: ["$leadStatus", "Enrolled"] },
+                {
+                  $reduce: {
+                    input: { $ifNull: ["$courses", []] },
+                    initialValue: 0,
+                    in: {
+                      $add: [
+                        "$$value",
+                        {
+                          $max: [
+                            {
+                              $subtract: [
+                                {
+                                  $subtract: [
+                                    {
+                                      $toDouble: {
+                                        $ifNull: ["$$this.originalPrice", 0],
+                                      },
+                                    },
+                                    {
+                                      $switch: {
+                                        branches: [
+                                          {
+                                            case: {
+                                              $eq: [
+                                                {
+                                                  $toLower: {
+                                                    $ifNull: [
+                                                      "$$this.discountUnit",
+                                                      "",
+                                                    ],
+                                                  },
+                                                },
+                                                "flat",
+                                              ],
+                                            },
+                                            then: {
+                                              $toDouble: {
+                                                $ifNull: [
+                                                  "$$this.leadDiscount",
+                                                  0,
+                                                ],
+                                              },
+                                            },
+                                          },
+                                          {
+                                            case: {
+                                              $eq: [
+                                                {
+                                                  $toLower: {
+                                                    $ifNull: [
+                                                      "$$this.discountUnit",
+                                                      "",
+                                                    ],
+                                                  },
+                                                },
+                                                "percent",
+                                              ],
+                                            },
+                                            then: {
+                                              $multiply: [
+                                                {
+                                                  $toDouble: {
+                                                    $ifNull: [
+                                                      "$$this.originalPrice",
+                                                      0,
+                                                    ],
+                                                  },
+                                                },
+                                                {
+                                                  $divide: [
+                                                    {
+                                                      $toDouble: {
+                                                        $ifNull: [
+                                                          "$$this.leadDiscount",
+                                                          0,
+                                                        ],
+                                                      },
+                                                    },
+                                                    100,
+                                                  ],
+                                                },
+                                              ],
+                                            },
+                                          },
+                                        ],
+                                        default: 0,
+                                      },
+                                    },
+                                  ],
+                                },
+                                {
+                                  $reduce: {
+                                    input: {
+                                      $filter: {
+                                        input: {
+                                          $ifNull: ["$$this.history", []],
+                                        },
+                                        as: "p",
+                                        cond: { $lte: ["$$p.date", new Date()] },
+                                      },
+                                    },
+                                    initialValue: 0,
+                                    in: {
+                                      $add: [
+                                        "$$value",
+                                        {
+                                          $toDouble: {
+                                            $ifNull: ["$$this.paidAmount", 0],
+                                          },
+                                        },
+                                      ],
+                                    },
+                                  },
+                                },
+                              ],
+                            },
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+                0,
+              ],
+            },
+          },
+
+          pendingCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                    { $eq: ["$leadStatus", "Pending"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          unreachableCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$lastContacted", startOfMonth] },
+                    { $lt: ["$lastContacted", endOfMonth] },
+                    { $in: ["$leadStatus", unreachableStatuses] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          totalConnectedCall: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$lastContacted", startOfMonth] },
+                    { $lt: ["$lastContacted", endOfMonth] },
+                    { $in: ["$leadStatus", connectedStatuses] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          connectedCallCountToday: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$lastContacted", startOfToday] },
+                    { $lt: ["$lastContacted", endOfToday] },
+                    { $in: ["$leadStatus", connectedStatuses] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          followUpCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$followUpDate", startOfMonth] },
+                    { $lt: ["$followUpDate", endOfMonth] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // totalEnrolled: lead counts once if status is Enrolled/Refunded
+          // AND at least one course payment landed in this month
+          totalEnrolled: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                    {
+                      $gt: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: {
+                                $reduce: {
+                                  input: { $ifNull: ["$courses", []] },
+                                  initialValue: [],
+                                  in: {
+                                    $concatArrays: [
+                                      "$$value",
+                                      { $ifNull: ["$$this.history", []] },
+                                    ],
+                                  },
+                                },
+                              },
+                              as: "p",
+                              cond: {
+                                $let: {
+                                  vars: {
+                                    pDate: {
+                                      $convert: {
+                                        input: "$$p.date",
+                                        to: "date",
+                                        onError: null,
+                                        onNull: null,
+                                      },
+                                    },
+                                  },
+                                  in: {
+                                    $and: [
+                                      { $ne: ["$$pDate", null] },
+                                      { $gte: ["$$pDate", startOfMonth] },
+                                      { $lt: ["$$pDate", endOfMonth] },
+                                    ],
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // totalSales: sum of every course payment whose date falls in
+          // this month, EXCLUDING leads marked "Enrolled with Other Number"
+          totalSales: {
+            $sum: {
+              $cond: [
+                { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                sumCourseHistoryInMonth,
+                0,
+              ],
+            },
+          },
+
+          enrolledWithOtherNumberCount: {
+            $sum: {
+              $cond: [
+                { $eq: ["$leadStatus", "Enrolled with Other Number"] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // sales that belong specifically to "Enrolled with Other Number" leads
+          enrolledWithOtherNumberSales: {
+            $sum: {
+              $cond: [
+                { $eq: ["$leadStatus", "Enrolled with Other Number"] },
+                sumCourseHistoryInMonth,
+                0,
+              ],
+            },
+          },
+
+          // unchanged — refundAmount only ever existed at lead level,
+          // it was never duplicated into courses[]
+          totalRefunds: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$enrolledAt", startOfMonth] },
+                    { $lt: ["$enrolledAt", endOfMonth] },
+                  ],
+                },
+                { $ifNull: ["$refundAmount", 0] },
+                0,
+              ],
+            },
+          },
+
+          refundedCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$enrolledAt", startOfMonth] },
+                    { $lt: ["$enrolledAt", endOfMonth] },
+                    { $gt: ["$refundAmount", 0] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          joinedOnSeminarCount: {
+            $sum: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $eq: [
+                        { $toLower: { $ifNull: ["$leadSource", ""] } },
+                        "seminar",
+                      ],
+                    },
+                    then: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$assignDate", startOfMonth] },
+                            { $lt: ["$assignDate", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  {
+                    case: { $eq: ["$interstedSeminar", "Joined"] },
+                    then: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$lastContacted", startOfMonth] },
+                            { $lt: ["$lastContacted", endOfMonth] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                ],
+                default: 0,
+              },
+            },
+          },
+        },
+      },
+
+      {
+        $lookup: {
+          from: User.collection.name,
+          localField: "_id",
+          foreignField: "email",
+          as: "userData",
+        },
+      },
+      { $match: { userData: { $ne: [] } } },
+      { $unwind: "$userData" },
+
+      {
+        $replaceRoot: { newRoot: { $mergeObjects: ["$userData", "$$ROOT"] } },
+      },
+      {
+        $project: {
+          password: 0,
+          refreshToken: 0,
+          userData: 0,
+        },
+      },
+    ]);
+
+    const usersWithStats = aggregatedUsers.map((userDoc) => {
+      const breakdown = calculateCommissionBreakdown(userDoc.totalSales);
+
+      return {
+        ...userDoc,
+        targetAmount: breakdown.targetAmount,
+        targetCompletionRate: breakdown.targetCompletionRate,
+        commission: breakdown.totalCommission,
+
+        agentCreatedSales: 0,
+        assignedSales: 0,
+        agentCreatedLeadCount: 0,
+        agentCreatedCommission: 0,
+        assignedCommission: 0,
+      };
+    });
+
+    if ((targetEmail || id) && (targetEmail = email)) {
+      if (usersWithStats.length > 0) {
+        return res.status(200).json(usersWithStats[0]);
+      } else {
+        const userInstance = await User.findOne({
+          $or: [{ email: targetEmail }, { _id: id }],
+        }).select("-password -refreshToken");
+        return res.status(200).json(userInstance || null);
+      }
+    }
+
+    return res.status(200).json(usersWithStats);
+  } catch (error) {
+    console.error(error);
+    return res.status(400).json({ error: error.message });
+  }
+};
+
 export const getAdminLeadStatsOld = async (req, res) => {
   try {
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
@@ -1709,8 +2299,102 @@ export const getAdminLeadStats = async (req, res) => {
         { lastContacted: { $gte: startOfMonth, $lt: endOfMonth } },
         { followUpDate: { $gte: startOfMonth, $lt: endOfMonth } },
         { enrolledAt: { $gte: startOfMonth, $lt: endOfMonth } },
-        { "history.date": { $gte: startOfMonth, $lt: endOfMonth } },
+        // payments now live inside courses[], so match on that too or
+        // leads whose only activity this month is a course payment get dropped
+        { "courses.history.date": { $gte: startOfMonth, $lt: endOfMonth } },
       ],
+    };
+
+    // Helper: sum of paidAmount across ALL courses' history entries
+    // whose date falls inside [startOfMonth, endOfMonth)
+    const sumCourseHistoryInMonth = {
+      $reduce: {
+        input: { $ifNull: ["$courses", []] },
+        initialValue: 0,
+        in: {
+          $add: [
+            "$$value",
+            {
+              $reduce: {
+                input: {
+                  $filter: {
+                    input: { $ifNull: ["$$this.history", []] },
+                    as: "p",
+                    cond: {
+                      $let: {
+                        vars: {
+                          pDate: {
+                            $convert: {
+                              input: "$$p.date",
+                              to: "date",
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                        },
+                        in: {
+                          $and: [
+                            { $ne: ["$$pDate", null] },
+                            { $gte: ["$$pDate", startOfMonth] },
+                            { $lt: ["$$pDate", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+                initialValue: 0,
+                in: {
+                  $add: [
+                    "$$value",
+                    {
+                      $convert: {
+                        input: "$$this.paidAmount",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    // Helper: count of course-history payment entries in this month
+    // (used to check "did this lead pay anything this month" for enrolledCount)
+    const coursePaymentsThisMonthCount = {
+      $size: {
+        $filter: {
+          input: {
+            $reduce: {
+              input: { $ifNull: ["$courses", []] },
+              initialValue: [],
+              in: { $concatArrays: ["$$value", { $ifNull: ["$$this.history", []] }] },
+            },
+          },
+          as: "p",
+          cond: {
+            $let: {
+              vars: {
+                pDate: {
+                  $convert: { input: "$$p.date", to: "date", onError: null, onNull: null },
+                },
+              },
+              in: {
+                $and: [
+                  { $ne: ["$$pDate", null] },
+                  { $gte: ["$$pDate", startOfMonth] },
+                  { $lt: ["$$pDate", endOfMonth] },
+                ],
+              },
+            },
+          },
+        },
+      },
     };
 
     const performanceStats = await Lead.aggregate([
@@ -1736,39 +2420,21 @@ export const getAdminLeadStats = async (req, res) => {
             },
           },
 
-          // Sum of payments minus refunds (excludes Enrolled with Other Number)
+          // Sum of course payments minus refunds (excludes Enrolled with Other Number)
           totalSales: {
             $sum: {
               $cond: [
                 { $ne: [{ $toLower: "$leadStatus" }, "enrolled with other number"] },
                 {
                   $subtract: [
-                    {
-                      $reduce: {
-                        input: {
-                          $filter: {
-                            input: { $ifNull: ["$history", []] },
-                            as: "p",
-                            cond: {
-                              $and: [
-                                { $ne: ["$$p.date", null] },
-                                { $gte: [{ $toDate: "$$p.date" }, startOfMonth] },
-                                { $lt: [{ $toDate: "$$p.date" }, endOfMonth] },
-                              ],
-                            },
-                          },
-                        },
-                        initialValue: 0,
-                        in: { $add: ["$$value", { $toDouble: { $ifNull: ["$$this.paidAmount", 0] } }] },
-                      },
-                    },
+                    sumCourseHistoryInMonth,
                     {
                       $cond: [
                         {
                           $and: [
                             { $ne: ["$enrolledAt", null] },
                             { $gte: [{ $toDate: "$enrolledAt" }, startOfMonth] },
-                            { $lt: [{ $toDate: "$enrolledAt", }, endOfMonth] },
+                            { $lt: [{ $toDate: "$enrolledAt" }, endOfMonth] },
                           ],
                         },
                         { $toDouble: { $ifNull: ["$refundAmount", 0] } },
@@ -1782,14 +2448,15 @@ export const getAdminLeadStats = async (req, res) => {
             },
           },
 
+          // enrolled this month = status Enrolled/Refunded AND at least
+          // one course payment landed in this month
           enrolledCount: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $gte: [{ $arrayElemAt: ["$history.date", 0] }, startOfMonth] },
-                    { $lt: [{ $arrayElemAt: ["$history.date", 0] }, endOfMonth] },
                     { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                    { $gt: [coursePaymentsThisMonthCount, 0] },
                   ],
                 },
                 1,
@@ -1798,6 +2465,7 @@ export const getAdminLeadStats = async (req, res) => {
             },
           },
 
+          // unchanged — refundAmount only ever lived at lead level
           totalRefunds: {
             $sum: {
               $cond: [
@@ -1829,6 +2497,7 @@ export const getAdminLeadStats = async (req, res) => {
             },
           },
 
+          // totalDue: summed across every course on the lead
           totalDue: {
             $sum: {
               $cond: [
@@ -1840,47 +2509,73 @@ export const getAdminLeadStats = async (req, res) => {
                   ],
                 },
                 {
-                  $max: [
-                    {
-                      $subtract: [
+                  $reduce: {
+                    input: { $ifNull: ["$courses", []] },
+                    initialValue: 0,
+                    in: {
+                      $add: [
+                        "$$value",
                         {
-                          $subtract: [
-                            { $toDouble: "$originalPrice" },
+                          $max: [
                             {
-                              $switch: {
-                                branches: [
-                                  {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "flat"] },
-                                    then: { $toDouble: "$leadDiscount" },
-                                  },
-                                  {
-                                    case: { $eq: [{ $toLower: "$discountUnit" }, "percent"] },
-                                    then: {
-                                      $multiply: [
-                                        { $toDouble: "$originalPrice" },
-                                        { $divide: [{ $toDouble: "$leadDiscount" }, 100] },
-                                      ],
+                              $subtract: [
+                                {
+                                  $subtract: [
+                                    { $toDouble: { $ifNull: ["$$this.originalPrice", 0] } },
+                                    {
+                                      $switch: {
+                                        branches: [
+                                          {
+                                            case: {
+                                              $eq: [
+                                                { $toLower: { $ifNull: ["$$this.discountUnit", ""] } },
+                                                "flat",
+                                              ],
+                                            },
+                                            then: { $toDouble: { $ifNull: ["$$this.leadDiscount", 0] } },
+                                          },
+                                          {
+                                            case: {
+                                              $eq: [
+                                                { $toLower: { $ifNull: ["$$this.discountUnit", ""] } },
+                                                "percent",
+                                              ],
+                                            },
+                                            then: {
+                                              $multiply: [
+                                                { $toDouble: { $ifNull: ["$$this.originalPrice", 0] } },
+                                                {
+                                                  $divide: [
+                                                    { $toDouble: { $ifNull: ["$$this.leadDiscount", 0] } },
+                                                    100,
+                                                  ],
+                                                },
+                                              ],
+                                            },
+                                          },
+                                        ],
+                                        default: 0,
+                                      },
+                                    },
+                                  ],
+                                },
+                                {
+                                  $sum: {
+                                    $map: {
+                                      input: { $ifNull: ["$$this.history", []] },
+                                      as: "p",
+                                      in: { $toDouble: { $ifNull: ["$$p.paidAmount", 0] } },
                                     },
                                   },
-                                ],
-                                default: 0,
-                              },
+                                },
+                              ],
                             },
+                            0,
                           ],
-                        },
-                        {
-                          $sum: {
-                            $map: {
-                              input: { $ifNull: ["$history", []] },
-                              as: "p",
-                              in: { $toDouble: "$$p.paidAmount" },
-                            },
-                          },
                         },
                       ],
                     },
-                    0,
-                  ],
+                  },
                 },
                 0,
               ],
@@ -1960,12 +2655,11 @@ export const getAdminLeadStats = async (req, res) => {
     let totalDue = 0;
     let totalUnreachable = 0;
     let joinedOnSeminar = 0;
-    
+
     let grandTotalTargetAmount = 0;
     let grandTotalCommission = 0;
 
-    performanceStats.forEach(agentDoc => {
-      // Calculate individual commission and target using the helper
+    performanceStats.forEach((agentDoc) => {
       const breakdown = calculateCommissionBreakdown(agentDoc.totalSales);
 
       totalEnrolled += agentDoc.enrolledCount || 0;
@@ -2015,13 +2709,13 @@ export const getAdminLeadStats = async (req, res) => {
   }
 };
 
-export const getAgentleadState = async (req, res) => {
+export const getAgentleadStateOld2 = async (req, res) => {
   try {
     const { email, id } = req.query;
     const month = parseInt(req.query.month);
     const year = parseInt(req.query.year);
 
-    if (!month || !year) {
+    if (!month || !year) {  
       return res.status(400).json({ error: "Month and Year are required" });
     }
 
