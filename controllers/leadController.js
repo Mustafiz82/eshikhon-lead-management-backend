@@ -129,6 +129,7 @@ export const createLead = async (req, res) => {
 
     // Step 4️⃣ — Separate New Leads from DB Duplicates
     const newLeads = [];
+    
 
     for (const l of uniqueIncoming) {
       const courseNames = getCourseNames(l);
@@ -216,6 +217,7 @@ export const createLead = async (req, res) => {
       insertedCount: inserted.length,
       skippedCount: totalSkipped,
       notInsertedLeads, // 👈 Detailed logs of ALL non-inserted leads with phone & data
+      insertedLeads: inserted, // 👈 Array of successfully inserted lead documents
       duplicatesInPayload,
       duplicatesInDB,
       failedInsertions,
