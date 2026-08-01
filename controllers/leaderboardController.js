@@ -3305,22 +3305,24 @@ export const getAgentleadStateOld2 = async (req, res) => {
 //     return res.status(400).json({ error: error.message });
 //   }
 // };
-
 export const getLeadsGrowth = async (req, res) => {
   try {
     const now = new Date();
 
     const monthlyStats = await Promise.all(
       Array.from({ length: 12 }, (_, i) => {
-        // go back months
         const start = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
         const end = new Date(now.getFullYear(), now.getMonth() - (10 - i), 1);
 
         return Promise.all([
           Lead.countDocuments({ assignDate: { $gte: start, $lt: end } }),
           Lead.countDocuments({
-            "history.0.date": { $gte: start, $lt: end },
             leadStatus: "Enrolled",
+            $or: [
+              { "courses.history.0.date": { $gte: start, $lt: end } },
+              { "courses.enrolledAt": { $gte: start, $lt: end } },
+              { enrolledAt: { $gte: start, $lt: end } }, // fallback for top-level enrolledAt
+            ],
           }),
         ]);
       }),

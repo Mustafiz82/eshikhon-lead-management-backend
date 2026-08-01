@@ -271,7 +271,7 @@ export const getAllLeads = async (req, res) => {
     const {
       status,
       course,
-      courseType, // 1. Added courseType to query parameters
+      courseType,
       search,
       sort,
       interstedSeminar,
@@ -303,12 +303,10 @@ export const getAllLeads = async (req, res) => {
     const paymentStartDateFormat = new Date(paymentStartDate);
 
     const paymentEndDateFormat = new Date(paymentEndDate);
-    // If it is midnight of Bangladesh Standard Time (18:00 UTC), set it to the end of that day (17:59:59 UTC)
     if (paymentEndDateFormat.getUTCHours() === 18) {
       paymentEndDateFormat.setUTCDate(paymentEndDateFormat.getUTCDate() + 1);
       paymentEndDateFormat.setUTCHours(17, 59, 59, 999);
     } else {
-      // Fallback for UTC midnight
       paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
 
@@ -319,18 +317,32 @@ export const getAllLeads = async (req, res) => {
       filter.assignStatus = status;
     }
 
-    // 2. Added course and courseType filter using $elemMatch for subdocuments array
-    if ((course && course !== "All") || (courseType && courseType !== "All")) {
-      const courseFilter = {};
+    // Build one combined $elemMatch on courses[] — course/courseType AND
+    // payment-date now both need to constrain the SAME course array,
+    // so they must live inside a single $elemMatch object, not two
+    // separate assignments to filter.courses (the second would clobber the first)
+    const courseElemMatch = {};
 
-      if (course && course !== "All") {
-        courseFilter.courseName = course;
-      }
-      if (courseType && courseType !== "All") {
-        courseFilter.courseType = courseType;
-      }
+    if (course && course !== "All") {
+      courseElemMatch.courseName = course;
+    }
+    if (courseType && courseType !== "All") {
+      courseElemMatch.courseType = courseType;
+    }
 
-      filter.courses = { $elemMatch: courseFilter };
+    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
+      courseElemMatch.history = {
+        $elemMatch: {
+          date: {
+            $gte: paymentStartDateFormat,
+            $lte: paymentEndDateFormat,
+          },
+        },
+      };
+    }
+
+    if (Object.keys(courseElemMatch).length > 0) {
+      filter.courses = { $elemMatch: courseElemMatch };
     }
 
     if (search) {
@@ -382,22 +394,10 @@ export const getAllLeads = async (req, res) => {
     }
     console.log({ paymentStartDateFormat, paymentEndDateFormat });
 
-    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
-      filter.history = {
-        $elemMatch: {
-          date: {
-            $gte: paymentStartDateFormat,
-            $lte: paymentEndDateFormat,
-          },
-        },
-      };
-    }
-
     if (showOnlyFollowups === "true") {
       filter.followUpDate = { $exists: true, $ne: null };
     }
 
-    // For followUpDate (from today → Dec 31)
     if (followUpDate && followUpDate !== "All") {
       const { start, end } = getDateRange(followUpDate, "followup");
       if (start && end) filter.followUpDate = { $gte: start, $lte: end };
