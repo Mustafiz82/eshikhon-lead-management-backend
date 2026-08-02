@@ -3451,10 +3451,6 @@ export const getCourseSellingSummary = async (req, res) => {
     const summary = courses.map((c) => {
       const courseName = c._id;
 
-      const relatedLeads = leads.filter(
-        (l) => l.interstedCourse === courseName,
-      );
-
       let totalSales = 0;
       let totalDue = 0;
 
@@ -3463,76 +3459,94 @@ export const getCourseSellingSummary = async (req, res) => {
       let onlineEnrolled = 0;
       let offlineEnrolled = 0;
 
-      relatedLeads.forEach((lead) => {
-        const type = lead.interstedCourseType;
+      leads.forEach((lead) => {
+        // Filter matching courses from the lead's courses array
+        const matchingCourses = (lead.courses || []).filter(
+          (courseItem) => courseItem.courseName === courseName
+        );
 
-        /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
-        if (
-          lead.assignDate &&
-          lead.assignDate >= start &&
-          lead.assignDate <= end
-        ) {
-          if (type === "Online") onlineAssigned++;
-          if (type === "Offline") offlineAssigned++;
-        }
+        matchingCourses.forEach((item) => {
+          const type = item.courseType;
+          const enrollmentDate = item.enrolledAt || lead.enrolledAt;
 
-        /* ---------------- ENROLLED (DATE FILTERED) ---------------- */
-        if (
-          lead.leadStatus === "Enrolled" &&
-          lead.enrolledAt &&
-          lead.enrolledAt >= start &&
-          lead.enrolledAt <= end
-        ) {
-          if (type === "Online") onlineEnrolled++;
-          if (type === "Offline") offlineEnrolled++;
-        }
-
-        /* ---------------- SALES (PAYMENT DATE FILTERED) ---------------- */
-        const paidThisPeriod = (lead.history || []).reduce((sum, h) => {
-          const d = new Date(h.date);
-          if (d >= start && d <= end) {
-            return sum + (h.paidAmount || 0);
+          /* ---------------- ASSIGNED (DATE FILTERED) ---------------- */
+          if (
+            lead.assignDate &&
+            lead.assignDate >= start &&
+            lead.assignDate <= end
+          ) {
+            if (type === "Online") onlineAssigned++;
+            if (type === "Offline") offlineAssigned++;
           }
-          return sum;
-        }, 0);
 
-        let refundToSubtract = 0;
-        if (
-          lead.enrolledAt &&
-          lead.enrolledAt >= start &&
-          lead.enrolledAt <= end
-        ) {
-          refundToSubtract = lead.refundAmount || 0;
-        }
+          /* ---------------- ENROLLED (DATE FILTERED) ---------------- */
+          if (
+            lead.leadStatus === "Enrolled" &&
+            enrollmentDate &&
+            enrollmentDate >= start &&
+            enrollmentDate <= end
+          ) {
+            if (type === "Online") onlineEnrolled++;
+            if (type === "Offline") offlineEnrolled++;
+          }
 
-        totalSales += paidThisPeriod - refundToSubtract;
+          /* ---------------- SALES (PAYMENT DATE FILTERED) ---------------- */
+          const paymentHistory =
+            item.history && item.history.length > 0
+              ? item.history
+              : lead.history || [];
 
-        /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
-        const hasPaymentThisPeriod = (lead.history || []).some((h) => {
-          const d = new Date(h.date);
-          return d >= start && d <= end;
+          const paidThisPeriod = paymentHistory.reduce((sum, h) => {
+            const d = new Date(h.date);
+            if (d >= start && d <= end) {
+              return sum + (Number(h.paidAmount) || 0);
+            }
+            return sum;
+          }, 0);
+
+          let refundToSubtract = 0;
+          if (
+            enrollmentDate &&
+            enrollmentDate >= start &&
+            enrollmentDate <= end
+          ) {
+            refundToSubtract = Number(lead.refundAmount || 0);
+          }
+
+          totalSales += paidThisPeriod - refundToSubtract;
+
+          /* ---------------- TOTAL DUE (MONTH-GATED, LATEST SNAPSHOT) ---------------- */
+          const hasPaymentThisPeriod = paymentHistory.some((h) => {
+            const d = new Date(h.date);
+            return d >= start && d <= end;
+          });
+
+          if (lead.leadStatus === "Enrolled" && hasPaymentThisPeriod) {
+            const basePrice = Number(item.originalPrice || 0);
+
+            let discountAmount = 0;
+            if (String(item.discountUnit).toLowerCase() === "flat") {
+              discountAmount = Number(item.leadDiscount || 0);
+            } else if (
+              String(item.discountUnit).toLowerCase() === "percent"
+            ) {
+              discountAmount =
+                basePrice * (Number(item.leadDiscount || 0) / 100);
+            }
+
+            const netPayable = basePrice - discountAmount;
+
+            const totalPaidTillNow =
+              item.totalPaid ||
+              paymentHistory.reduce(
+                (sum, h) => sum + Number(h.paidAmount || 0),
+                0
+              );
+
+            const due = Math.max(netPayable - totalPaidTillNow, 0);
+            totalDue += due;
+          }
         });
-
-        if (lead.leadStatus === "Enrolled" && hasPaymentThisPeriod) {
-          const basePrice = Number(lead.originalPrice || 0);
-
-          let discountAmount = 0;
-          if (String(lead.discountUnit).toLowerCase() === "flat") {
-            discountAmount = Number(lead.leadDiscount || 0);
-          } else if (String(lead.discountUnit).toLowerCase() === "percent") {
-            discountAmount = basePrice * (Number(lead.leadDiscount || 0) / 100);
-          }
-
-          const netPayable = basePrice - discountAmount;
-
-          const totalPaidTillNow = (lead.history || []).reduce(
-            (sum, h) => sum + Number(h.paidAmount || 0),
-            0,
-          );
-
-          const due = Math.max(netPayable - totalPaidTillNow, 0);
-          totalDue += due;
-        }
       });
 
       return {
