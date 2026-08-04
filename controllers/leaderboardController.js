@@ -174,8 +174,6 @@ export const getLeaderboards = async (req, res) => {
   }
 };
 
-
-
 export const getAgentleadState = async (req, res) => {
   try {
     const { email, id } = req.query;
@@ -423,7 +421,9 @@ export const getAgentleadState = async (req, res) => {
                                           $ifNull: ["$$this.history", []],
                                         },
                                         as: "p",
-                                        cond: { $lte: ["$$p.date", new Date()] },
+                                        cond: {
+                                          $lte: ["$$p.date", new Date()],
+                                        },
                                       },
                                     },
                                     initialValue: 0,
@@ -598,7 +598,14 @@ export const getAgentleadState = async (req, res) => {
           totalSales: {
             $sum: {
               $cond: [
-                { $ne: ["$leadStatus", "Enrolled with Other Number"] },
+                {
+                  $not: {
+                    $in: [
+                      { $toLower: "$leadStatus" },
+                      ["enrolled with other number", "on hold"],
+                    ],
+                  },
+                },
                 sumCourseHistoryInMonth,
                 0,
               ],
@@ -608,7 +615,12 @@ export const getAgentleadState = async (req, res) => {
           enrolledWithOtherNumberCount: {
             $sum: {
               $cond: [
-                { $eq: ["$leadStatus", "Enrolled with Other Number"] },
+                {
+                  $in: [
+                    { $toLower: "$leadStatus" },
+                    ["enrolled with other number", "on hold"],
+                  ],
+                },
                 1,
                 0,
               ],
@@ -619,7 +631,12 @@ export const getAgentleadState = async (req, res) => {
           enrolledWithOtherNumberSales: {
             $sum: {
               $cond: [
-                { $eq: ["$leadStatus", "Enrolled with Other Number"] },
+                {
+                  $in: [
+                    { $toLower: "$leadStatus" },
+                    ["enrolled with other number", "on hold"],
+                  ],
+                },
                 sumCourseHistoryInMonth,
                 0,
               ],
@@ -2267,8 +2284,6 @@ export const getAgentleadStateOld = async (req, res) => {
   }
 };
 
-
-
 export const getAdminLeadStats = async (req, res) => {
   try {
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
@@ -2373,7 +2388,9 @@ export const getAdminLeadStats = async (req, res) => {
             $reduce: {
               input: { $ifNull: ["$courses", []] },
               initialValue: [],
-              in: { $concatArrays: ["$$value", { $ifNull: ["$$this.history", []] }] },
+              in: {
+                $concatArrays: ["$$value", { $ifNull: ["$$this.history", []] }],
+              },
             },
           },
           as: "p",
@@ -2381,7 +2398,12 @@ export const getAdminLeadStats = async (req, res) => {
             $let: {
               vars: {
                 pDate: {
-                  $convert: { input: "$$p.date", to: "date", onError: null, onNull: null },
+                  $convert: {
+                    input: "$$p.date",
+                    to: "date",
+                    onError: null,
+                    onNull: null,
+                  },
                 },
               },
               in: {
@@ -2424,7 +2446,17 @@ export const getAdminLeadStats = async (req, res) => {
           totalSales: {
             $sum: {
               $cond: [
-                { $ne: [{ $toLower: "$leadStatus" }, "enrolled with other number"] },
+                {
+                  $and: [
+                    {
+                      $ne: [
+                        { $toLower: "$leadStatus" },
+                        "enrolled with other number",
+                      ],
+                    },
+                    { $ne: [{ $toLower: "$leadStatus" }, "on hold"] },
+                  ],
+                },
                 {
                   $subtract: [
                     sumCourseHistoryInMonth,
@@ -2433,7 +2465,9 @@ export const getAdminLeadStats = async (req, res) => {
                         {
                           $and: [
                             { $ne: ["$enrolledAt", null] },
-                            { $gte: [{ $toDate: "$enrolledAt" }, startOfMonth] },
+                            {
+                              $gte: [{ $toDate: "$enrolledAt" }, startOfMonth],
+                            },
                             { $lt: [{ $toDate: "$enrolledAt" }, endOfMonth] },
                           ],
                         },
@@ -2521,32 +2555,71 @@ export const getAdminLeadStats = async (req, res) => {
                               $subtract: [
                                 {
                                   $subtract: [
-                                    { $toDouble: { $ifNull: ["$$this.originalPrice", 0] } },
+                                    {
+                                      $toDouble: {
+                                        $ifNull: ["$$this.originalPrice", 0],
+                                      },
+                                    },
                                     {
                                       $switch: {
                                         branches: [
                                           {
                                             case: {
                                               $eq: [
-                                                { $toLower: { $ifNull: ["$$this.discountUnit", ""] } },
+                                                {
+                                                  $toLower: {
+                                                    $ifNull: [
+                                                      "$$this.discountUnit",
+                                                      "",
+                                                    ],
+                                                  },
+                                                },
                                                 "flat",
                                               ],
                                             },
-                                            then: { $toDouble: { $ifNull: ["$$this.leadDiscount", 0] } },
+                                            then: {
+                                              $toDouble: {
+                                                $ifNull: [
+                                                  "$$this.leadDiscount",
+                                                  0,
+                                                ],
+                                              },
+                                            },
                                           },
                                           {
                                             case: {
                                               $eq: [
-                                                { $toLower: { $ifNull: ["$$this.discountUnit", ""] } },
+                                                {
+                                                  $toLower: {
+                                                    $ifNull: [
+                                                      "$$this.discountUnit",
+                                                      "",
+                                                    ],
+                                                  },
+                                                },
                                                 "percent",
                                               ],
                                             },
                                             then: {
                                               $multiply: [
-                                                { $toDouble: { $ifNull: ["$$this.originalPrice", 0] } },
+                                                {
+                                                  $toDouble: {
+                                                    $ifNull: [
+                                                      "$$this.originalPrice",
+                                                      0,
+                                                    ],
+                                                  },
+                                                },
                                                 {
                                                   $divide: [
-                                                    { $toDouble: { $ifNull: ["$$this.leadDiscount", 0] } },
+                                                    {
+                                                      $toDouble: {
+                                                        $ifNull: [
+                                                          "$$this.leadDiscount",
+                                                          0,
+                                                        ],
+                                                      },
+                                                    },
                                                     100,
                                                   ],
                                                 },
@@ -2562,9 +2635,15 @@ export const getAdminLeadStats = async (req, res) => {
                                 {
                                   $sum: {
                                     $map: {
-                                      input: { $ifNull: ["$$this.history", []] },
+                                      input: {
+                                        $ifNull: ["$$this.history", []],
+                                      },
                                       as: "p",
-                                      in: { $toDouble: { $ifNull: ["$$p.paidAmount", 0] } },
+                                      in: {
+                                        $toDouble: {
+                                          $ifNull: ["$$p.paidAmount", 0],
+                                        },
+                                      },
                                     },
                                   },
                                 },
@@ -2592,7 +2671,12 @@ export const getAdminLeadStats = async (req, res) => {
                     {
                       $in: [
                         "$leadStatus",
-                        ["call declined", "Call Not Received", "Number Off or Busy", "Wrong Number"],
+                        [
+                          "call declined",
+                          "Call Not Received",
+                          "Number Off or Busy",
+                          "Wrong Number",
+                        ],
                       ],
                     },
                   ],
@@ -2608,7 +2692,12 @@ export const getAdminLeadStats = async (req, res) => {
               $switch: {
                 branches: [
                   {
-                    case: { $eq: [{ $toLower: { $ifNull: ["$leadSource", ""] } }, "seminar"] },
+                    case: {
+                      $eq: [
+                        { $toLower: { $ifNull: ["$leadSource", ""] } },
+                        "seminar",
+                      ],
+                    },
                     then: {
                       $cond: [
                         {
@@ -2715,7 +2804,7 @@ export const getAgentleadStateOld2 = async (req, res) => {
     const month = parseInt(req.query.month);
     const year = parseInt(req.query.year);
 
-    if (!month || !year) {  
+    if (!month || !year) {
       return res.status(400).json({ error: "Month and Year are required" });
     }
 
@@ -3058,7 +3147,7 @@ export const getAgentleadStateOld2 = async (req, res) => {
           },
 
           // Sales amount from leads with status "Enrolled with Other Number"
-          enrolledWithOtherNumberSales:{
+          enrolledWithOtherNumberSales: {
             $sum: {
               $cond: [
                 { $eq: ["$leadStatus", "Enrolled with Other Number"] },
@@ -3079,7 +3168,7 @@ export const getAgentleadStateOld2 = async (req, res) => {
                                       to: "date",
                                       onError: null,
                                       onNull: null,
-                                    },  
+                                    },
                                   },
                                 },
                                 in: {
@@ -3236,10 +3325,10 @@ export const getAgentleadStateOld2 = async (req, res) => {
       },
     ]);
 
-    console.log(aggregatedUsers)
+    console.log(aggregatedUsers);
 
     // Apply the utility function's target & commission calculations in JavaScript
-    const usersWithStats = aggregatedUsers.map(userDoc => {
+    const usersWithStats = aggregatedUsers.map((userDoc) => {
       const breakdown = calculateCommissionBreakdown(userDoc.totalSales);
 
       return {
@@ -3276,7 +3365,6 @@ export const getAgentleadStateOld2 = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
-
 
 // export const getLeadsGrowth = async (req, res) => {
 //   try {
@@ -3336,8 +3424,6 @@ export const getLeadsGrowth = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
-
-
 
 export const getDailyCallCount = async (req, res) => {
   try {
@@ -3462,7 +3548,7 @@ export const getCourseSellingSummary = async (req, res) => {
       leads.forEach((lead) => {
         // Filter matching courses from the lead's courses array
         const matchingCourses = (lead.courses || []).filter(
-          (courseItem) => courseItem.courseName === courseName
+          (courseItem) => courseItem.courseName === courseName,
         );
 
         matchingCourses.forEach((item) => {
@@ -3527,9 +3613,7 @@ export const getCourseSellingSummary = async (req, res) => {
             let discountAmount = 0;
             if (String(item.discountUnit).toLowerCase() === "flat") {
               discountAmount = Number(item.leadDiscount || 0);
-            } else if (
-              String(item.discountUnit).toLowerCase() === "percent"
-            ) {
+            } else if (String(item.discountUnit).toLowerCase() === "percent") {
               discountAmount =
                 basePrice * (Number(item.leadDiscount || 0) / 100);
             }
@@ -3540,7 +3624,7 @@ export const getCourseSellingSummary = async (req, res) => {
               item.totalPaid ||
               paymentHistory.reduce(
                 (sum, h) => sum + Number(h.paidAmount || 0),
-                0
+                0,
               );
 
             const due = Math.max(netPayable - totalPaidTillNow, 0);

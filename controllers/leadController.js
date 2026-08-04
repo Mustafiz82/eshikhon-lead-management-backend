@@ -573,6 +573,10 @@ export const getOrderDetails = async (req, res) => {
 
     const order = response.data;
 
+    // return  res.status(404).json(order) ;
+
+    
+
     // Normal users can only view their own orders
     if (!isAdmin) {
       const orderPhone = order.billing?.phone?.toLowerCase() || "";
@@ -623,7 +627,8 @@ export const getOrderDetails = async (req, res) => {
     res.json({
       status: order.status,
       customerPhone: order.billing?.phone || "",
-      orderCompletionDate: order.date_completed,
+      orderCompletionDate: order.date_completed ,
+      ordercreationDate: order.date_created,
       courses,
     });
   } catch (error) {

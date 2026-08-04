@@ -43,6 +43,10 @@ export const getUser = async (req, res) => {
 export const updateUser = async (req, res) => {
 
   const { id } = req.params
+
+  console.log(req.body)
+  console.log(id)
+  console.log("hit")
   try {
     const user = await User.findByIdAndUpdate(id, req.body, {
       new: true
