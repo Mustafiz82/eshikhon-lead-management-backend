@@ -99,7 +99,7 @@ export const createLead = async (req, res) => {
       const existing = await lead
         .find(
           { $or: mongoQuery },
-          { phone: 1, interstedCourse: 1, courses: 1, orderNumber: 1 }
+          { phone: 1, interstedCourse: 1, courses: 1, orderNumber: 1 },
         )
         .lean();
 
@@ -112,14 +112,14 @@ export const createLead = async (req, res) => {
         // Collect DB Phone + Course pairs
         if (e.interstedCourse) {
           existingPairs.add(
-            `${e.phone}__${e.interstedCourse.trim().toLowerCase()}`
+            `${e.phone}__${e.interstedCourse.trim().toLowerCase()}`,
           );
         }
         if (Array.isArray(e.courses)) {
           e.courses.forEach((c) => {
             if (c.courseName) {
               existingPairs.add(
-                `${e.phone}__${c.courseName.trim().toLowerCase()}`
+                `${e.phone}__${c.courseName.trim().toLowerCase()}`,
               );
             }
           });
@@ -129,18 +129,17 @@ export const createLead = async (req, res) => {
 
     // Step 4️⃣ — Separate New Leads from DB Duplicates
     const newLeads = [];
-    
 
     for (const l of uniqueIncoming) {
       const courseNames = getCourseNames(l);
 
       const isCourseDuplicate = courseNames.some((name) =>
-        existingPairs.has(`${l.phone}__${name.toLowerCase()}`)
+        existingPairs.has(`${l.phone}__${name.toLowerCase()}`),
       );
 
       // Check if order number already exists in DB
       const isOrderDuplicate = Boolean(
-        l.orderNumber && existingOrderNumbers.has(l.orderNumber)
+        l.orderNumber && existingOrderNumbers.has(l.orderNumber),
       );
 
       if (isCourseDuplicate || isOrderDuplicate) {
@@ -178,7 +177,7 @@ export const createLead = async (req, res) => {
         } else {
           // Generic fallback for uninserted leads
           const insertedPhoneSet = new Set(
-            inserted.map((i) => String(i.phone))
+            inserted.map((i) => String(i.phone)),
           );
           newLeads.forEach((l) => {
             if (!insertedPhoneSet.has(String(l.phone))) {
@@ -361,8 +360,18 @@ export const getAllLeads = async (req, res) => {
             },
           },
         },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$_id" }, // Change "_id" to "leadId" if it is a separate field
+              regex: search,
+              options: "i",
+            },
+          },
+        },
       ];
     }
+
     if (assignTo && assignTo !== "All") {
       filter.assignTo = assignTo;
     }
@@ -500,13 +509,14 @@ export const getAllLeads = async (req, res) => {
 // controllers/orderController.js
 
 export const getOrderDetails = async (req, res) => {
-  const { email } = req.query;
+  const { phone } = req.query;
+  console.log(phone);
   const orderNumber = req.params.id;
 
-  if (!email || typeof email !== "string") {
+  if (!phone || typeof phone !== "string") {
     return res.status(400).json({
       success: false,
-      message: "Email query parameter is required.",
+      message: "Phone query parameter is required.",
     });
   }
 
@@ -521,16 +531,27 @@ export const getOrderDetails = async (req, res) => {
 
     // 0. Prevent duplicate order unless admin is just checking
     if (orderNumber && !isAdmin) {
-      const existingOrder = await lead
-        .findOne({
-          orderNumber: Number(orderNumber),
-        })
-        .lean();
+      const query = { orderNumber: Number(orderNumber) };
+      if (req.query.leadId) {
+        query._id = { $ne: req.query.leadId }; // 👈 Ignores the current lead ID!
+      }
+
+      const existingOrder = await lead.findOne(query).lean();
 
       if (existingOrder) {
+        // 🚨 LOG MATCHED LEAD _ID TO TERMINAL
+        console.log("==========================================");
+        console.log("❌ ORDER NUMBER ALREADY EXISTS IN DB");
+        console.log("Order Number Searched:", orderNumber);
+        console.log("MATCHED LEAD _id:", existingOrder._id);
+        console.log("Matched Lead Name:", existingOrder.name || "N/A");
+        console.log("Matched Lead Phone:", existingOrder.phone || "N/A");
+        console.log("==========================================");
+
         return res.status(400).json({
           success: false,
-          message: `Order #${orderNumber} has already been used.`,
+          message: `Order #${orderNumber} is used by Lead ID: ${existingOrder._id}`,
+          matchedLeadId: existingOrder._id,
           isUsed: true,
         });
       }
@@ -554,9 +575,11 @@ export const getOrderDetails = async (req, res) => {
 
     // Normal users can only view their own orders
     if (!isAdmin) {
-      const orderEmail = order.billing?.email?.toLowerCase() || "";
+      const orderPhone = order.billing?.phone?.toLowerCase() || "";
 
-      if (orderEmail !== email.toLowerCase()) {
+      console.log(orderPhone);
+
+      if (orderPhone.includes()) {
         return res.status(403).json({
           success: false,
           message: "This order does not belong to this customer.",
@@ -1016,7 +1039,7 @@ export const updateSingleLead = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
 
-    const updates = { ...data, };
+    const updates = { ...data };
 
     const leadDoc = await lead.findById(id);
     if (!leadDoc) return res.status(404).json({ message: "Lead not found" });
