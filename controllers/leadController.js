@@ -290,6 +290,8 @@ export const getAllLeads = async (req, res) => {
       paymentEndDate,
       showOnlyFollowups,
       followUpDate,
+      followupStartDate,
+      followupEndDate,
       showOnlyMissedFollowUps,
       showOnlyMissedPayments,
       fields,
@@ -346,11 +348,19 @@ export const getAllLeads = async (req, res) => {
       filter.courses = { $elemMatch: courseElemMatch };
     }
 
+    let phoneSearchClean = null;
+    if (search) {
+      let digitsOnly = search.replace(/[^\d]/g, ""); // strip +, spaces, dashes
+      digitsOnly = digitsOnly.replace(/^880/, ""); // strip country code
+      digitsOnly = digitsOnly.replace(/^0/, ""); // strip leading trunk 0
+      phoneSearchClean = digitsOnly;
+    }
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { phone: { $regex: phoneSearchClean || search, $options: "i" } },
         {
           $expr: {
             $regexMatch: {
@@ -432,6 +442,29 @@ export const getAllLeads = async (req, res) => {
           filter.nextEstimatedPaymentDate = { $gte: start, $lte: end };
         }
       }
+    }
+
+    // Handle Follow Up Date Range or Presets
+    if (followUpDate === "DateRange") {
+      // Handle both camelCase and lowercase 'u' casing variations safely
+      const fStart = followupStartDate || req.query.followUpStartDate;
+      const fEnd = followupEndDate || req.query.followUpEndDate;
+
+      if (fStart && fEnd) {
+        const followUpStartDateFormat = new Date(fStart);
+        const followUpEndDateFormat = new Date(fEnd);
+
+        // Adjust end date to the end of the day
+        followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+
+        filter.followUpDate = {
+          $gte: followUpStartDateFormat,
+          $lte: followUpEndDateFormat,
+        };
+      }
+    } else if (followUpDate && followUpDate !== "All") {
+      const { start, end } = getDateRange(followUpDate, "followup");
+      if (start && end) filter.followUpDate = { $gte: start, $lte: end };
     }
 
     if (showOnlyMissedFollowUps === "true") {
@@ -575,8 +608,6 @@ export const getOrderDetails = async (req, res) => {
 
     // return  res.status(404).json(order) ;
 
-    
-
     // Normal users can only view their own orders
     if (!isAdmin) {
       const orderPhone = order.billing?.phone?.toLowerCase() || "";
@@ -627,7 +658,7 @@ export const getOrderDetails = async (req, res) => {
     res.json({
       status: order.status,
       customerPhone: order.billing?.phone || "",
-      orderCompletionDate: order.date_completed ,
+      orderCompletionDate: order.date_completed,
       ordercreationDate: order.date_created,
       courses,
     });

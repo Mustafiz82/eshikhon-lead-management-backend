@@ -226,6 +226,7 @@ export const getAgentleadState = async (req, res) => {
       "Call later",
       "Will Register",
       "Already Enrolled",
+      "Not Ready - PC/Basic",
       "On hold",
     ];
 
@@ -1540,6 +1541,7 @@ export const getAgentleadStateOld = async (req, res) => {
       "Call later",
       "Will Register",
       "Already Enrolled",
+      "Not Ready - PC/Basic",
       "On hold",
     ];
 
@@ -2848,6 +2850,7 @@ export const getAgentleadStateOld2 = async (req, res) => {
       "Call later",
       "Will Register",
       "Already Enrolled",
+      "Not Ready - PC/Basic",
       "On hold",
     ];
 
@@ -3461,6 +3464,7 @@ export const getDailyCallCount = async (req, res) => {
               "Call later",
               "Will Register",
               "Already Enrolled",
+              "Not Ready - PC/Basic",
               "On hold",
             ],
           },
