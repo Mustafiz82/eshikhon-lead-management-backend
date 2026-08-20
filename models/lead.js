@@ -36,6 +36,7 @@
           name: { type: String, trim: true },
           phone: { type: String, trim: true },
           address: { type: String, trim: true },
+          fblink: { type: String, trim: true },
           email: {
             type: String,
 
@@ -90,6 +91,7 @@
               "Enrolled in Other Institute",
               "Call later",
               "Call Not Received",
+              "Call Declined",
               "Number Off or Busy",
               "Wrong Number",
               "Will Register",
@@ -99,6 +101,8 @@
               "Refunded",
               "Enrolled with Other Number",
               "Not Ready - PC/Basic",
+              "Contacted via Messenger",
+
             ],
             default: "Pending",
           },

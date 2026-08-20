@@ -195,6 +195,9 @@ export const getAgentleadState = async (req, res) => {
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
 
+    console.log(startOfMonth)
+    console.log(endOfMonth)
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const endOfToday = new Date();
@@ -227,12 +230,14 @@ export const getAgentleadState = async (req, res) => {
       "Will Register",
       "Already Enrolled",
       "Not Ready - PC/Basic",
+      "Contacted via Messenger",
       "On hold",
     ];
 
     const unreachableStatuses = [
       "call declined",
       "Call Not Received",
+      "Call Declined",
       "Number Off or Busy",
       "Wrong Number",
     ];
@@ -1159,7 +1164,7 @@ export const getAdminLeadStatsOld = async (req, res) => {
                       $in: [
                         "$leadStatus",
                         [
-                          "call declined",
+                          "Call Declined",
                           "Call Not Received",
                           "Number Off or Busy",
                           "Wrong Number",
@@ -1537,11 +1542,12 @@ export const getAgentleadStateOld = async (req, res) => {
       "Not Interested",
       "Enrolled in Other Institute",
       "Enrolled with Other Number",
-      "Call declined",
+      "Call Declined",
       "Call later",
       "Will Register",
       "Already Enrolled",
       "Not Ready - PC/Basic",
+      "Contacted via Messenger",
       "On hold",
     ];
 
@@ -2674,7 +2680,7 @@ export const getAdminLeadStats = async (req, res) => {
                       $in: [
                         "$leadStatus",
                         [
-                          "call declined",
+                          "Call Declined",
                           "Call Not Received",
                           "Number Off or Busy",
                           "Wrong Number",
@@ -2851,11 +2857,12 @@ export const getAgentleadStateOld2 = async (req, res) => {
       "Will Register",
       "Already Enrolled",
       "Not Ready - PC/Basic",
+      "Contacted via Messenger",
       "On hold",
     ];
 
     const unreachableStatuses = [
-      "call declined",
+      "Call Declined",
       "Call Not Received",
       "Number Off or Busy",
       "Wrong Number",
