@@ -990,6 +990,7 @@ export const getLeadSources = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 export const getInterestedCourses = async (req, res) => {
   try {
     console.log("hit /getInterestedCourses");
@@ -1072,11 +1073,12 @@ export const getLeadsCount = async (req, res) => {
     const {
       status,
       course,
+      courseType, // Added
       search,
-      sort, // Added to mirror getAllLeads destructuring
+      sort, 
       interstedSeminar,
-      limit, // Added to mirror getAllLeads destructuring
-      currentPage, // Added to mirror getAllLeads destructuring
+      limit, 
+      currentPage, 
       createdBy,
       assignTo,
       leadStatus,
@@ -1089,9 +1091,11 @@ export const getLeadsCount = async (req, res) => {
       paymentEndDate,
       showOnlyFollowups,
       followUpDate,
+      followupStartDate, // Added
+      followupEndDate,   // Added
       showOnlyMissedFollowUps,
-      showOnlyMissedPayments, // Added to mirror getAllLeads destructuring
-      fields, // Added to mirror getAllLeads destructuring
+      showOnlyMissedPayments, 
+      fields, 
       lock,
       leadSource,
       upcomingPaymentsDate,
@@ -1104,12 +1108,10 @@ export const getLeadsCount = async (req, res) => {
     const paymentStartDateFormat = new Date(paymentStartDate);
     const paymentEndDateFormat = new Date(paymentEndDate);
 
-    // NOTE: Mirrored from getAllLeads to fix midnight Bangladesh Standard Time (18:00 UTC) adjustments
     if (paymentEndDateFormat.getUTCHours() === 18) {
       paymentEndDateFormat.setUTCDate(paymentEndDateFormat.getUTCDate() + 1);
       paymentEndDateFormat.setUTCHours(17, 59, 59, 999);
     } else {
-      // Fallback for UTC midnight
       paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
 
@@ -1118,31 +1120,58 @@ export const getLeadsCount = async (req, res) => {
       filter.assignStatus = status;
     }
 
-    // 2. Course
+    // 2. Combined Course & Payment ElemMatch (Mirrored from getAllLeads)
+    const courseElemMatch = {};
+
     if (course && course !== "All") {
-      filter["courses.courseName"] = course;
+      courseElemMatch.courseName = course;
+    }
+    if (courseType && courseType !== "All") {
+      courseElemMatch.courseType = courseType;
     }
 
-    // 3. Search
-    /* Old Search logic commented out to mirror getAllLeads (which includes orderNumber search)
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-      ];
+    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
+      courseElemMatch.history = {
+        $elemMatch: {
+          date: {
+            $gte: paymentStartDateFormat,
+            $lte: paymentEndDateFormat,
+          },
+        },
+      };
     }
-    */
-    // Mirrored search logic from getAllLeads (adds orderNumber regex string-cast search matching)
+
+    if (Object.keys(courseElemMatch).length > 0) {
+      filter.courses = { $elemMatch: courseElemMatch };
+    }
+
+    // 3. Search Logic with Phone Sanitization & ID Search (Mirrored from getAllLeads)
+    let phoneSearchClean = null;
+    if (search) {
+      let digitsOnly = search.replace(/[^\d]/g, ""); 
+      digitsOnly = digitsOnly.replace(/^880/, ""); 
+      digitsOnly = digitsOnly.replace(/^0/, ""); 
+      phoneSearchClean = digitsOnly;
+    }
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { phone: { $regex: phoneSearchClean || search, $options: "i" } },
         {
           $expr: {
             $regexMatch: {
               input: { $toString: "$orderNumber" },
+              regex: search,
+              options: "i",
+            },
+          },
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$_id" }, 
               regex: search,
               options: "i",
             },
@@ -1162,12 +1191,6 @@ export const getLeadsCount = async (req, res) => {
     }
 
     // 6. LeadStatus
-    /* Old LeadStatus logic commented out to mirror special "Contacted" treatment in getAllLeads
-    if (leadStatus && leadStatus !== "All") {
-      filter.leadStatus = leadStatus;
-    }
-    */
-    // Mirrored LeadStatus logic from getAllLeads (adds special "Contacted" status support)
     if (leadStatus && leadStatus !== "All") {
       if (leadStatus == "Contacted") {
         filter.leadStatus = { $ne: "Pending" };
@@ -1187,23 +1210,11 @@ export const getLeadsCount = async (req, res) => {
       else filter.leadStatus = { $ne: "Pending" };
     }
 
-    // 9. AssignDate
-    if (assignStartDate && assignEndDate) {
-      // const { start, end } = getDateRange(assignDate, "assign");
+    // 9. AssignDate (Added exact condition check from getAllLeads)
+    if (assignDate === "DateRange" && assignStartDate && assignEndDate) {
       filter.assignDate = {
         $gte: assignStartDateFormat,
         $lte: assignEndDateFormat,
-      };
-    }
-
-    if (paymentStartDate && paymentEndDate && paymentMode == "DateRange") {
-      filter.history = {
-        $elemMatch: {
-          date: {
-            $gte: paymentStartDateFormat,
-            $lte: paymentEndDateFormat,
-          },
-        },
       };
     }
 
@@ -1212,13 +1223,7 @@ export const getLeadsCount = async (req, res) => {
       filter.followUpDate = { $exists: true, $ne: null };
     }
 
-    // 11. Follow Up Date Range
-    if (followUpDate && followUpDate !== "All") {
-      const { start, end } = getDateRange(followUpDate, "followup");
-      if (start && end) filter.followUpDate = { $gte: start, $lte: end };
-    }
-
-    // 12. Upcoming Payments
+    // 11. Upcoming Payments
     if (upcomingPaymentsDate && upcomingPaymentsDate !== "None") {
       if (upcomingPaymentsDate === "All") {
         const now = new Date();
@@ -1239,38 +1244,42 @@ export const getLeadsCount = async (req, res) => {
       }
     }
 
+    // 12. Follow Up Date Range & Presets (Mirrored from getAllLeads)
+    if (followUpDate === "DateRange") {
+      const fStart = followupStartDate || req.query.followUpStartDate;
+      const fEnd = followupEndDate || req.query.followUpEndDate;
+
+      if (fStart && fEnd) {
+        const followUpStartDateFormat = new Date(fStart);
+        const followUpEndDateFormat = new Date(fEnd);
+
+        followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+
+        filter.followUpDate = {
+          $gte: followUpStartDateFormat,
+          $lte: followUpEndDateFormat,
+        };
+      }
+    } else if (followUpDate && followUpDate !== "All") {
+      const { start, end } = getDateRange(followUpDate, "followup");
+      if (start && end) filter.followUpDate = { $gte: start, $lte: end };
+    }
+
     // 13. Missed Follow Ups Boolean
-    /* Old Missed Follow Ups logic commented out to mirror overwriting behavior of getAllLeads
     if (showOnlyMissedFollowUps === "true") {
       const now = new Date();
       const bdNow = new Date(
         now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
       );
 
-      // Use spread to merge if followUpDate already exists from previous filters
       filter.followUpDate = {
-        ...filter.followUpDate,
         $exists: true,
         $ne: null,
         $lt: bdNow,
       };
     }
-    */
-    // Mirrored Missed Follow Ups logic from getAllLeads
-    if (showOnlyMissedFollowUps === "true") {
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
 
-      filter.followUpDate = {
-        $exists: true,
-        $ne: null,
-        $lt: bdNow, // strictly before current date-time
-      };
-    }
-
-    // 13b. Missed Payments Boolean (Added to mirror getAllLeads)
+    // 14. Missed Payments Boolean
     if (showOnlyMissedPayments === "true") {
       const now = new Date();
       const bdNow = new Date(
@@ -1280,29 +1289,9 @@ export const getLeadsCount = async (req, res) => {
       filter.nextEstimatedPaymentDate = {
         $exists: true,
         $ne: null,
-        $lt: bdNow, // strictly before current date-time
-      };
-    }
-
-    // 14. Missed Follow Up Date
-    // NOTE: Commented out to mirror getAllLeads, which has this filter commented out.
-    /*
-    if (missedFollowUpDate && missedFollowUpDate !== "All") {
-      const { start, end } = getDateRange(missedFollowUpDate, "missedFollowup");
-      const now = new Date();
-      const bdNow = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
-      );
-
-      filter.followUpDate = {
-        ...filter.followUpDate,
-        $exists: true,
-        $ne: null,
         $lt: bdNow,
-        ...(start && end ? { $gte: start, $lte: end } : {}),
       };
     }
-    */
 
     // 15. Lock
     if (lock && lock !== "All") {
