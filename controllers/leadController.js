@@ -78,7 +78,7 @@ export const createLead = async (req, res) => {
         if (l.orderNumber) {
           seenOrderNumbers.add(l.orderNumber);
         }
-        
+
         // Still register the phone/course pairs in case a subsequent lead has NO order number
         const courseNames = getCourseNames(l);
         for (const name of courseNames) {
@@ -581,6 +581,14 @@ export const getAllLeads = async (req, res) => {
 
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
+
+    if (assignEndDateFormat.getUTCHours() === 18) {
+      assignEndDateFormat.setUTCDate(assignEndDateFormat.getUTCDate() + 1);
+      assignEndDateFormat.setUTCHours(17, 59, 59, 999);
+    } else {
+      assignEndDateFormat.setUTCHours(23, 59, 59, 999);
+    }
+
     const paymentStartDateFormat = new Date(paymentStartDate);
 
     const paymentEndDateFormat = new Date(paymentEndDate);
@@ -727,7 +735,6 @@ export const getAllLeads = async (req, res) => {
 
     // Handle Follow Up Date Range or Presets
     if (followUpDate === "DateRange") {
-      // Handle both camelCase and lowercase 'u' casing variations safely
       const fStart = followupStartDate || req.query.followUpStartDate;
       const fEnd = followupEndDate || req.query.followUpEndDate;
 
@@ -735,8 +742,15 @@ export const getAllLeads = async (req, res) => {
         const followUpStartDateFormat = new Date(fStart);
         const followUpEndDateFormat = new Date(fEnd);
 
-        // Adjust end date to the end of the day
-        followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+        // FIX: Added the 18:00 UTC shift check to mirror the payment logic
+        if (followUpEndDateFormat.getUTCHours() === 18) {
+          followUpEndDateFormat.setUTCDate(
+            followUpEndDateFormat.getUTCDate() + 1,
+          );
+          followUpEndDateFormat.setUTCHours(17, 59, 59, 999);
+        } else {
+          followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+        }
 
         filter.followUpDate = {
           $gte: followUpStartDateFormat,
@@ -1075,10 +1089,10 @@ export const getLeadsCount = async (req, res) => {
       course,
       courseType, // Added
       search,
-      sort, 
+      sort,
       interstedSeminar,
-      limit, 
-      currentPage, 
+      limit,
+      currentPage,
       createdBy,
       assignTo,
       leadStatus,
@@ -1092,10 +1106,10 @@ export const getLeadsCount = async (req, res) => {
       showOnlyFollowups,
       followUpDate,
       followupStartDate, // Added
-      followupEndDate,   // Added
+      followupEndDate, // Added
       showOnlyMissedFollowUps,
-      showOnlyMissedPayments, 
-      fields, 
+      showOnlyMissedPayments,
+      fields,
       lock,
       leadSource,
       upcomingPaymentsDate,
@@ -1105,6 +1119,13 @@ export const getLeadsCount = async (req, res) => {
     const filter = {};
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
+
+    if (assignEndDateFormat.getUTCHours() === 18) {
+      assignEndDateFormat.setUTCDate(assignEndDateFormat.getUTCDate() + 1);
+      assignEndDateFormat.setUTCHours(17, 59, 59, 999);
+    } else {
+      assignEndDateFormat.setUTCHours(23, 59, 59, 999);
+    }
     const paymentStartDateFormat = new Date(paymentStartDate);
     const paymentEndDateFormat = new Date(paymentEndDate);
 
@@ -1148,9 +1169,9 @@ export const getLeadsCount = async (req, res) => {
     // 3. Search Logic with Phone Sanitization & ID Search (Mirrored from getAllLeads)
     let phoneSearchClean = null;
     if (search) {
-      let digitsOnly = search.replace(/[^\d]/g, ""); 
-      digitsOnly = digitsOnly.replace(/^880/, ""); 
-      digitsOnly = digitsOnly.replace(/^0/, ""); 
+      let digitsOnly = search.replace(/[^\d]/g, "");
+      digitsOnly = digitsOnly.replace(/^880/, "");
+      digitsOnly = digitsOnly.replace(/^0/, "");
       phoneSearchClean = digitsOnly;
     }
 
@@ -1171,7 +1192,7 @@ export const getLeadsCount = async (req, res) => {
         {
           $expr: {
             $regexMatch: {
-              input: { $toString: "$_id" }, 
+              input: { $toString: "$_id" },
               regex: search,
               options: "i",
             },
@@ -1253,7 +1274,15 @@ export const getLeadsCount = async (req, res) => {
         const followUpStartDateFormat = new Date(fStart);
         const followUpEndDateFormat = new Date(fEnd);
 
-        followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+        // FIX: Added the 18:00 UTC shift check to mirror the payment logic
+        if (followUpEndDateFormat.getUTCHours() === 18) {
+          followUpEndDateFormat.setUTCDate(
+            followUpEndDateFormat.getUTCDate() + 1,
+          );
+          followUpEndDateFormat.setUTCHours(17, 59, 59, 999);
+        } else {
+          followUpEndDateFormat.setUTCHours(23, 59, 59, 999);
+        }
 
         filter.followUpDate = {
           $gte: followUpStartDateFormat,
@@ -1625,103 +1654,149 @@ export const updateSingleLead = async (req, res) => {
 
 function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
   const now = new Date();
-  const localNow = new Date(now.toLocaleString("en-US", { timeZone: tz }));
+
+  // Dhaka is UTC+6 (21,600,000 milliseconds)
+  const dhakaOffset = 6 * 60 * 60 * 1000;
+
+  // Convert current UTC time to a local Dhaka milliseconds timestamp
+  const localNowMs = now.getTime() + dhakaOffset;
+  const localNow = new Date(localNowMs);
 
   let start, end;
+
+  // Helper to convert a Dhaka local Date back to a standard UTC Date for Mongo queries
+  const toUTCDate = (localDate) => {
+    return new Date(localDate.getTime() - dhakaOffset);
+  };
 
   // ------------------------
   // Assign Date filters
   // ------------------------
   if (type === "Today") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(localNow.setHours(23, 59, 59, 999));
+    const localStart = new Date(localNow);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(localNow);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "This Week") {
-    const day = localNow.getDay(); // 0=Sunday … 6=Saturday
+    const day = localNow.getUTCDay(); // 0=Sunday … 6=Saturday
     const diff = (day + 1) % 7; // Saturday = 0
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
+    const localStart = new Date(localNow);
+    localStart.setUTCDate(localNow.getUTCDate() - diff);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
 
-    end = new Date(start);
-    end.setDate(start.getDate() + 6); // Friday
-    end.setHours(23, 59, 59, 999);
+    const localEnd = new Date(localStart);
+    localEnd.setUTCDate(localStart.getUTCDate() + 6); // Friday
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "This Month") {
-    start = new Date(localNow.getFullYear(), localNow.getMonth(), 1);
-    end = new Date(
-      localNow.getFullYear(),
-      localNow.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
+    const localStart = new Date(
+      localNow.getUTCFullYear(),
+      localNow.getUTCMonth(),
+      1,
     );
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(
+      localNow.getUTCFullYear(),
+      localNow.getUTCMonth() + 1,
+      0,
+    );
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "This Year") {
     if (mode === "assign") {
-      // full calendar year
-      start = new Date(localNow.getFullYear(), 0, 1);
+      const localStart = new Date(localNow.getUTCFullYear(), 0, 1);
+      start = toUTCDate(localStart);
     } else {
-      // followup mode = from today to end of year
-      start = new Date(localNow.setHours(0, 0, 0, 0));
+      const localStart = new Date(localNow);
+      localStart.setUTCHours(0, 0, 0, 0);
+      start = toUTCDate(localStart);
     }
-    end = new Date(localNow.getFullYear(), 11, 31, 23, 59, 59, 999);
+    const localEnd = new Date(localNow.getUTCFullYear(), 11, 31);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   // ------------------------
   // Follow-up filters
   // ------------------------
   if (type === "Next 3 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 3);
-    end.setHours(23, 59, 59, 999);
+    const localStart = new Date(localNow);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(localStart);
+    localEnd.setUTCDate(localStart.getUTCDate() + 3);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "Next 7 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 7);
-    end.setHours(23, 59, 59, 999);
+    const localStart = new Date(localNow);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(localStart);
+    localEnd.setUTCDate(localStart.getUTCDate() + 7);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "Next 30 Days") {
-    start = new Date(localNow.setHours(0, 0, 0, 0));
-    end = new Date(start);
-    end.setDate(start.getDate() + 30);
-    end.setHours(23, 59, 59, 999);
+    const localStart = new Date(localNow);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(localStart);
+    localEnd.setUTCDate(localStart.getUTCDate() + 30);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   // ------------------------
   // LAST ranges
   // ------------------------
   if (type === "Last 3 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 3);
-    start.setHours(0, 0, 0, 0);
+    const localStart = new Date(localNow);
+    localStart.setUTCDate(localNow.getUTCDate() - 3);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
 
-    end = new Date(localNow.setHours(23, 59, 59, 999));
+    const localEnd = new Date(localNow);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "Last 7 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 7);
-    start.setHours(0, 0, 0, 0);
+    const localStart = new Date(localNow);
+    localStart.setUTCDate(localNow.getUTCDate() - 7);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
 
-    end = new Date(localNow.setHours(23, 59, 59, 999));
+    const localEnd = new Date(localNow);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type === "Last 30 Days") {
-    start = new Date(localNow);
-    start.setDate(localNow.getDate() - 30);
-    start.setHours(0, 0, 0, 0);
+    const localStart = new Date(localNow);
+    localStart.setUTCDate(localNow.getUTCDate() - 30);
+    localStart.setUTCHours(0, 0, 0, 0);
+    start = toUTCDate(localStart);
 
-    end = new Date(localNow.setHours(23, 59, 59, 999));
+    const localEnd = new Date(localNow);
+    localEnd.setUTCHours(23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   // ------------------------
@@ -1729,14 +1804,20 @@ function getDateRange(type, mode = "assign", tz = "Asia/Dhaka") {
   // ------------------------
   if (type.includes("/")) {
     const [dd, mm, yyyy] = type.split("/");
-    start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-    end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    const localStart = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   if (type.includes("-")) {
     const [yyyy, mm, dd] = type.split("-");
-    start = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-    end = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    const localStart = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+    start = toUTCDate(localStart);
+
+    const localEnd = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+    end = toUTCDate(localEnd);
   }
 
   return { start, end };
