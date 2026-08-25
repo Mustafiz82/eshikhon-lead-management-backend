@@ -195,13 +195,52 @@ export const getAgentleadState = async (req, res) => {
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
 
-    console.log(startOfMonth)
-    console.log(endOfMonth)
+    console.log(startOfMonth);
+    console.log(endOfMonth);
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
+ // ✅ REPLACE WITH THIS:
+const clientTimeZone = req.query.timezone || "Asia/Dhaka";
+
+const getTodayRangeInTimezone = (timeZone) => {
+  const now = new Date();
+  
+  // 1. Get the local date string (YYYY-MM-DD) in the target timezone
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const localDateStr = formatter.format(now);
+
+  // 2. Get local time parts
+  const timeFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  });
+  const timeParts = timeFormatter.formatToParts(now);
+  const hour = parseInt(timeParts.find((p) => p.type === "hour").value, 10);
+  const minute = parseInt(timeParts.find((p) => p.type === "minute").value, 10);
+  const second = parseInt(timeParts.find((p) => p.type === "second").value, 10);
+
+  // 3. Compute the offset between the target timezone and real UTC
+  const localCurrentAsUTC = new Date(
+    `${localDateStr}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}.000Z`
+  );
+  const offsetMs = localCurrentAsUTC.getTime() - now.getTime();
+
+  // 4. Calculate start of today and end of today in UTC
+  const localMidnightAsUTC = new Date(`${localDateStr}T00:00:00.000Z`);
+  const startOfToday = new Date(localMidnightAsUTC.getTime() - offsetMs);
+  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+
+  return { startOfToday, endOfToday };
+};
+
+const { startOfToday, endOfToday } = getTodayRangeInTimezone(clientTimeZone);
 
     const superMatch = {
       $or: [
@@ -227,7 +266,8 @@ export const getAgentleadState = async (req, res) => {
       "Enrolled with Other Number",
       "Call declined",
       "Call later",
-      "Will Register",
+      "Will Register Soon",
+      "Will Register Later",
       "Already Enrolled",
       "Not Ready - PC/Basic",
       "Contacted via Messenger",
@@ -1544,7 +1584,8 @@ export const getAgentleadStateOld = async (req, res) => {
       "Enrolled with Other Number",
       "Call Declined",
       "Call later",
-      "Will Register",
+      "Will Register Soon",
+      "Will Register Later",
       "Already Enrolled",
       "Not Ready - PC/Basic",
       "Contacted via Messenger",
@@ -2854,7 +2895,8 @@ export const getAgentleadStateOld2 = async (req, res) => {
       "Enrolled with Other Number",
       "Call declined",
       "Call later",
-      "Will Register",
+      "Will Register Soon",
+      "Will Register Later",
       "Already Enrolled",
       "Not Ready - PC/Basic",
       "Contacted via Messenger",
@@ -3469,7 +3511,8 @@ export const getDailyCallCount = async (req, res) => {
               "Enrolled with Other Number",
               "Call declined",
               "Call later",
-              "Will Register",
+              "Will Register Soon",
+              "Will Register Later",
               "Already Enrolled",
               "Not Ready - PC/Basic",
               "On hold",

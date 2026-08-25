@@ -1,193 +1,188 @@
-      import mongoose from "mongoose";
+import mongoose from "mongoose";
 
-      const leadCourseSchema = new mongoose.Schema({
-        courseName: { type: String, trim: true },
-        courseType: {
-          type: String,
-          enum: [
-            "Online",
-            "Offline",
-            "Video Course",
-            "Download Course",
-            "Free course",
-            "Both",
-            "Not Specified",
-          ],
-          default: "Not Specified",
-        },
-        originalPrice: { type: Number, default: 0 },
-        leadDiscount: { type: Number, default: 0 },
-        discountUnit: { type: String, enum: ["percent", "flat"], default: "flat" },
-        totalPaid: { type: Number, default: 0 },
-        totalDue: { type: Number, default: 0 },
-        enrolledAt: { type: Date },
-        history: [
-          {
-            date: { type: Date, default: Date.now },
-            paidAmount: { type: Number, default: 0 },
-          },
-        ],
-      });
+const leadCourseSchema = new mongoose.Schema({
+  courseName: { type: String, trim: true },
+  courseType: {
+    type: String,
+    enum: [
+      "Online",
+      "Offline",
+      "Video Course",
+      "Download Course",
+      "Free course",
+      "Both",
+      "Not Specified",
+    ],
+    default: "Not Specified",
+  },
+  originalPrice: { type: Number, default: 0 },
+  leadDiscount: { type: Number, default: 0 },
+  discountUnit: { type: String, enum: ["percent", "flat"], default: "flat" },
+  totalPaid: { type: Number, default: 0 },
+  totalDue: { type: Number, default: 0 },
+  enrolledAt: { type: Date },
+  history: [
+    {
+      date: { type: Date, default: Date.now },
+      paidAmount: { type: Number, default: 0 },
+    },
+  ],
+});
 
+const leadSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    address: { type: String, trim: true },
+    fblink: { type: String, trim: true },
+    email: {
+      type: String,
 
+      lowercase: true,
+    },
+    questions: { type: mongoose.Schema.Types.Mixed }, // other will be in quesiont preoper , seminarSource add , source file name
+    // interstedCourse: {
+    //   type: String,
+    //   default: "not provided",
+    // },
+    // interstedCourseType: {
+    //   type: String,
+    //   enum: [
+    //     "Online",
+    //     "Offline",
+    //     "Video Course",
+    //     "Download Course",
+    //     "Free course",
+    //     "Both",
+    //     "Not Specified",
+    //   ],
+    //   default: "Not Specified",
+    // },
+    leadSource: {
+      type: String,
+      default: "Not Provided",
+    },
+    createdBy: { type: String, required: true },
+    creatorRole: { type: String },
+    assignTo: { type: String, default: "N/A" },
+    assignStatus: { type: Boolean, default: false },
+    assignDate: { type: Date },
+    leadType: {
+      type: String,
+      enum: ["potential leads", "open Pool"],
+      default: "potential leads",
+    },
 
-      const leadSchema = new mongoose.Schema(
-        {
-          name: { type: String, trim: true },
-          phone: { type: String, trim: true },
-          address: { type: String, trim: true },
-          fblink: { type: String, trim: true },
-          email: {
-            type: String,
+    courses: [leadCourseSchema],
 
-            lowercase: true,
-          },
-          questions: { type: mongoose.Schema.Types.Mixed }, // other will be in quesiont preoper , seminarSource add , source file name
-          // interstedCourse: {
-          //   type: String,
-          //   default: "not provided",
-          // },
-          // interstedCourseType: {
-          //   type: String,
-          //   enum: [
-          //     "Online",
-          //     "Offline",
-          //     "Video Course",
-          //     "Download Course",
-          //     "Free course",
-          //     "Both",
-          //     "Not Specified",
-          //   ],
-          //   default: "Not Specified",
-          // },
-          leadSource: {
-            type: String,
-            default: "Not Provided",
-          },
-          createdBy: { type: String, required: true },
-          creatorRole: { type: String },
-          assignTo: { type: String, default: "N/A" },
-          assignStatus: { type: Boolean, default: false },
-          assignDate: { type: Date },
-          leadType: {
-            type: String,
-            enum: ["potential leads", "open Pool"],
-            default: "potential leads",
-          },
+    interstedSeminar: {
+      type: String,
+      enum: ["Joined", "Online", "Offline", "None"],
+      default: "None",
+    },
+    enrolledTo: { type: String },
+    leadStatus: {
+      type: String,
+      enum: [
+        "Enrolled",
+        "Not Interested",
+        "Enrolled in Other Institute",
+        "Call later",
+        "Call Not Received",
+        "Call Declined",
+        "Number Off or Busy",
+        "Wrong Number",
+        "Will Register Soon",
+        "Will Register Later",
+        "Already Enrolled",
+        "On hold",
+        "Pending",
+        "Refunded",
+        "Enrolled with Other Number",
+        "Not Ready - PC/Basic",
+        "Contacted via Messenger",
+      ],
+      default: "Pending",
+    },
+    // leadDiscount: { type: Number, default: 0 }, // the discount amount
+    callCount: {
+      type: Number,
+      default: 0,
+    },
+    // discountUnit: {
+    //   type: String,
+    //   enum: ["percent", "flat"],
+    //   default: "flat",
+    // }, // discout unit
 
-          courses: [leadCourseSchema],
+    discountSource: {
+      type: String,
+      trim: true,
+    }, // discount sourse
 
-          interstedSeminar: {
-            type: String,
-            enum: ["Joined", "Online", "Offline", "None"],
-            default: "None",
-          },
-          enrolledTo: { type: String },
-          leadStatus: {
-            type: String,
-            enum: [
-              "Enrolled",
-              "Not Interested",
-              "Enrolled in Other Institute",
-              "Call later",
-              "Call Not Received",
-              "Call Declined",
-              "Number Off or Busy",
-              "Wrong Number",
-              "Will Register",
-              "Already Enrolled",
-              "On hold",
-              "Pending",
-              "Refunded",
-              "Enrolled with Other Number",
-              "Not Ready - PC/Basic",
-              "Contacted via Messenger",
+    // originalPrice: {
+    //   type: Number,
+    //   default: 0,
+    // }, // buying price of course
 
-            ],
-            default: "Pending",
-          },
-          // leadDiscount: { type: Number, default: 0 }, // the discount amount
-          callCount : {
-            type : Number , 
-            default : 0
-          },
-          // discountUnit: {
-          //   type: String,
-          //   enum: ["percent", "flat"],
-          //   default: "flat",
-          // }, // discout unit
+    discountedPrice: {
+      type: Number,
+      default: 0,
+    }, // value after discoutn couon applid calculated with discoutn unit and amoutn always in amount
 
-          discountSource: {
-            type: String,
-            trim: true,
-          }, // discount sourse
+    isLocked: {
+      // admin can lock leads
+      type: Boolean,
+      default: false,
+    },
+    entryBy: {
+      type: String,
+      trim: true,
+    },
 
-          // originalPrice: {
-          //   type: Number,
-          //   default: 0,
-          // }, // buying price of course
+    uniqueID: {
+      type: String,
+    },
 
-          discountedPrice: {
-            type: Number,
-            default: 0,
-          }, // value after discoutn couon applid calculated with discoutn unit and amoutn always in amount
+    totalPaid: { type: Number, default: 0 }, // How much in total he have paid
+    totalDue: { type: Number, default: 0 }, // how much total due he  has  to pay
 
-          isLocked: {
-            // admin can lock leads
-            type: Boolean,
-            default: false,
-          },
-          entryBy: {
-            type: String,
-            trim: true,
-          },
+    refundAmount: { type: Number, default: 0 }, // How much amount is refunded
 
+    history: [
+      // payment history
+      {
+        date: { type: Date, default: Date.now },
+        paidAmount: { type: Number, default: 0 },
+      },
+    ],
 
-          uniqueID: {
-            type: String,
-          },
+    note: [
+      // notes automatic + menual
+      {
+        text: { type: String, trim: true },
+        createdAt: { type: Date, default: Date.now },
+        by: { type: String },
+      },
+    ],
+    firstContacted: { type: Date },
+    lastContacted: { type: Date }, // when last contacted with lead
+    lastModifiedBy: { type: String }, // who modified last
+    enrolledAt: { type: Date }, // The date first time it marked as enrolled
+    followUpDate: { type: Date }, // when the leads need to call again
+    sourceFileName: { type: String, trim: true }, // file name of uploaded lead
+    nextEstimatedPaymentDate: {
+      // when user might paid later if downpayment happense
+      type: Date,
+    },
+    orderNumber: { type: Number, trim: true, index: true },
+  },
+  { timestamps: true },
+);
 
-          totalPaid: { type: Number, default: 0 }, // How much in total he have paid
-          totalDue: { type: Number, default: 0 }, // how much total due he  has  to pay
+leadSchema.index({ email: 1 });
+leadSchema.index({ assignTo: 1, assignDate: 1 });
+leadSchema.index({ leadStatus: 1, enrolledAt: 1 });
+leadSchema.index({ createdAt: -1 });
 
-          refundAmount: { type: Number, default: 0 }, // How much amount is refunded
-
-          history: [
-            // payment history
-            {
-              date: { type: Date, default: Date.now },
-              paidAmount: { type: Number, default: 0 },
-            },
-          ],
-
-          note: [
-            // notes automatic + menual
-            {
-              text: { type: String, trim: true },
-              createdAt: { type: Date, default: Date.now },
-              by: { type: String },
-            },
-          ],
-          firstContacted : {type : Date},
-          lastContacted: { type: Date }, // when last contacted with lead
-          lastModifiedBy: { type: String }, // who modified last
-          enrolledAt: { type: Date }, // The date first time it marked as enrolled
-          followUpDate: { type: Date }, // when the leads need to call again
-          sourceFileName: { type: String, trim: true }, // file name of uploaded lead
-          nextEstimatedPaymentDate: {
-            // when user might paid later if downpayment happense
-            type: Date,
-          },
-          orderNumber: { type: Number, trim: true, index: true },
-        },
-        { timestamps: true },
-      );
-
-      leadSchema.index({ email: 1 });
-      leadSchema.index({ assignTo: 1, assignDate: 1 });
-      leadSchema.index({ leadStatus: 1, enrolledAt: 1 });
-      leadSchema.index({ createdAt: -1 });
-
-      export default mongoose.model("Lead", leadSchema);
-
-
+export default mongoose.model("Lead", leadSchema);
