@@ -4,69 +4,176 @@ import Lead from "../models/lead.js";
 import course from "../models/course.js";
 import { calculateCommissionBreakdown } from "../utils/commissionCalculator.js";
 
+
 export const getLeaderboards = async (req, res) => {
   try {
-    const { month, year } = req.query;
-    const numericMonth = month && month !== "all" ? parseInt(month) : null;
-    const numericYear = year ? parseInt(year) : new Date().getFullYear();
-
-    // --- 1. Base Match Stage for Leads ---
-    // We will filter the leads by date first for maximum performance.
-    const leadMatch = {};
-    // if (numericMonth) {
-    //   const startOfMonth = new Date(numericYear, numericMonth - 1, 1);
-    //   const endOfMonth = new Date(numericYear, numericMonth, 1);
-    //   leadMatch.assignDate = { $gte: startOfMonth, $lt: endOfMonth };
-    // }
     const startOfMonth = new Date(req.query.startDate);
     const endOfMonth = new Date(req.query.endDate);
-    leadMatch.assignDate = { $gte: startOfMonth, $lt: endOfMonth };
 
-    // --- Aggregation Pipeline ---
-    const results = await Lead.aggregate([
-      // Stage 1: Filter the leads down to only the relevant ones.
-      { $match: leadMatch },
+    const superMatch = {
+      $or: [
+        { assignDate: { $gte: startOfMonth, $lt: endOfMonth } },
+        { lastContacted: { $gte: startOfMonth, $lt: endOfMonth } },
+        { followUpDate: { $gte: startOfMonth, $lt: endOfMonth } },
+        { enrolledAt: { $gte: startOfMonth, $lt: endOfMonth } },
+        { "courses.history.date": { $gte: startOfMonth, $lt: endOfMonth } },
+      ],
+    };
 
-      // Stage 2: Get the course price for each lead.
-      {
-        $lookup: {
-          from: "courses",
-          let: { topic: "$interstedCourse", type: "$interstedCourseType" },
-          pipeline: [
+    // Helper aggregation: sum of course history payments within the current month
+    const sumCourseHistoryInMonth = {
+      $reduce: {
+        input: { $ifNull: ["$courses", []] },
+        initialValue: 0,
+        in: {
+          $add: [
+            "$$value",
             {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$name", "$$topic"] },
-                    { $eq: ["$type", "$$type"] },
+              $reduce: {
+                input: {
+                  $filter: {
+                    input: { $ifNull: ["$$this.history", []] },
+                    as: "p",
+                    cond: {
+                      $let: {
+                        vars: {
+                          pDate: {
+                            $convert: {
+                              input: "$$p.date",
+                              to: "date",
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                        },
+                        in: {
+                          $and: [
+                            { $ne: ["$$pDate", null] },
+                            { $gte: ["$$pDate", startOfMonth] },
+                            { $lt: ["$$pDate", endOfMonth] },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+                initialValue: 0,
+                in: {
+                  $add: [
+                    "$$value",
+                    {
+                      $convert: {
+                        input: "$$this.paidAmount",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
                   ],
                 },
               },
             },
-            { $project: { price: 1, _id: 0 } },
           ],
-          as: "courseData",
         },
       },
-      { $unwind: { path: "$courseData", preserveNullAndEmptyArrays: true } },
-      { $addFields: { effectivePrice: { $ifNull: ["$courseData.price", 0] } } },
+    };
 
-      // Stage 3: Group by user to calculate all base stats. This avoids the 16MB limit.
+    const aggregatedAgents = await Lead.aggregate([
+      { $match: superMatch },
+
       {
         $group: {
-          _id: "$assignTo", // Group by the user's email
-          leadCount: { $sum: 1 },
-          basePrice: { $sum: "$effectivePrice" },
-          enrolledCount: {
-            $sum: {
-              $cond: [{ $in: ["$leadStatus", ["Enrolled", "Refunded"]] }, 1, 0],
-            },
-          },
-          totalPaidFromEnrolled: {
+          _id: "$assignTo",
+
+          // 1. Total Leads Assigned in the month
+          leadCount: {
             $sum: {
               $cond: [
-                { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
-                { $ifNull: ["$totalPaid", 0] },
+                {
+                  $and: [
+                    { $gte: ["$assignDate", startOfMonth] },
+                    { $lt: ["$assignDate", endOfMonth] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // 2. Admits/Enrolled (same logic as getAgentleadState)
+          enrolledCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$leadStatus", ["Enrolled", "Refunded"]] },
+                    {
+                      $gt: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: {
+                                $reduce: {
+                                  input: { $ifNull: ["$courses", []] },
+                                  initialValue: [],
+                                  in: {
+                                    $concatArrays: [
+                                      "$$value",
+                                      { $ifNull: ["$$this.history", []] },
+                                    ],
+                                  },
+                                },
+                              },
+                              as: "p",
+                              cond: {
+                                $let: {
+                                  vars: {
+                                    pDate: {
+                                      $convert: {
+                                        input: "$$p.date",
+                                        to: "date",
+                                        onError: null,
+                                        onNull: null,
+                                      },
+                                    },
+                                  },
+                                  in: {
+                                    $and: [
+                                      { $ne: ["$$pDate", null] },
+                                      { $gte: ["$$pDate", startOfMonth] },
+                                      { $lt: ["$$pDate", endOfMonth] },
+                                    ],
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // 3. Total Sales this month
+          totalSales: {
+            $sum: {
+              $cond: [
+                {
+                  $not: {
+                    $in: [
+                      { $toLower: "$leadStatus" },
+                      ["enrolled with other number", "on hold"],
+                    ],
+                  },
+                },
+                sumCourseHistoryInMonth,
                 0,
               ],
             },
@@ -74,7 +181,7 @@ export const getLeaderboards = async (req, res) => {
         },
       },
 
-      // Stage 4: Join with the User collection to get details.
+      // Join User Info
       {
         $lookup: {
           from: User.collection.name,
@@ -83,27 +190,18 @@ export const getLeaderboards = async (req, res) => {
           as: "userData",
         },
       },
+      { $match: { userData: { $ne: [] } } },
       { $unwind: "$userData" },
-
-      // Stage 5: Exclude admins from the leaderboard.
       { $match: { "userData.role": { $ne: "admin" } } },
 
-      // Stage 6: Calculate the final derived metrics for each user.
       {
-        $addFields: {
+        $project: {
+          _id: 1,
           name: "$userData.name",
           email: "$userData.email",
-          target: "$userData.target",
-          targetAmount: {
-            $multiply: [
-              "$basePrice",
-              { $divide: [{ $ifNull: ["$userData.target", 0] }, 100] },
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
+          leadCount: 1,
+          enrolledCount: 1,
+          totalSales: 1,
           conversionRate: {
             $cond: [
               { $gt: ["$leadCount", 0] },
@@ -121,55 +219,30 @@ export const getLeaderboards = async (req, res) => {
               0,
             ],
           },
-          targetFilled: {
-            $cond: [
-              { $gt: ["$targetAmount", 0] },
-              {
-                $round: [
-                  {
-                    $multiply: [
-                      { $divide: ["$totalPaidFromEnrolled", "$targetAmount"] },
-                      100,
-                    ],
-                  },
-                  2,
-                ],
-              },
-              0,
-            ],
-          },
-        },
-      },
-
-      // Stage 7: Use $facet to create all four leaderboards, sorted correctly by the database.
-      {
-        $facet: {
-          byAdmitCount: [
-            { $sort: { enrolledCount: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } },
-          ],
-          bySales: [
-            { $sort: { totalPaidFromEnrolled: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } },
-          ],
-          byConversion: [
-            { $sort: { conversionRate: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } },
-          ],
-          byTargetFilled: [
-            { $sort: { targetFilled: -1 } },
-            { $project: { userData: 0, password: 0, refreshToken: 0 } },
-          ],
         },
       },
     ]);
 
-    // The result from the aggregation is an array with a single object
-    // that already has the exact structure we need.
-    const leaderboards = results[0];
+    // Calculate Target Completion with calculateCommissionBreakdown for parity
+    const formattedAgents = aggregatedAgents.map((agent) => {
+      const breakdown = calculateCommissionBreakdown(agent.totalSales);
+      return {
+        ...agent,
+        targetFilled: breakdown.targetCompletionRate || 0,
+      };
+    });
+
+    // Generate 4 sorted leaderboard lists
+    const leaderboards = {
+      byAdmitCount: [...formattedAgents].sort((a, b) => b.enrolledCount - a.enrolledCount),
+      bySales: [...formattedAgents].sort((a, b) => b.totalSales - a.totalSales),
+      byConversion: [...formattedAgents].sort((a, b) => b.conversionRate - a.conversionRate),
+      byTargetFilled: [...formattedAgents].sort((a, b) => b.targetFilled - a.targetFilled),
+    };
 
     return res.status(200).json(leaderboards);
   } catch (error) {
+    console.error(error);
     return res.status(400).json({ error: error.message });
   }
 };

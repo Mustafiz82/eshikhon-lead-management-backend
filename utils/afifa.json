@@ -1,0 +1,1123 @@
+{
+    "notInsertedLeads": [
+        {
+            "phone": "01757581898",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-05-03T00:00:00.000Z",
+                "name": "Be Sipa\r",
+                "email": "",
+                "address": "",
+                "phone": "01757581898",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Counselling",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 2,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nazmul",
+                "note": [
+                    {
+                        "text": "call not received, call not received",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Call Not Received",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-05-05T00:00:00.000Z",
+                "lastContacted": "2026-05-19T00:00:00.000Z",
+                "followUpDate": "2026-07-29T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-05-03T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01835499493",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-05-19T00:00:00.000Z",
+                "name": "Md Hossain",
+                "email": "",
+                "address": "",
+                "phone": "01835499493",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Aysha",
+                "note": [
+                    {
+                        "text": "call not received send details again whatsapp",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Pending",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-05-21T00:00:00.000Z",
+                "lastContacted": "2026-05-21T00:00:00.000Z",
+                "followUpDate": "2026-06-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-05-19T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "06797393731",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-05-20T00:00:00.000Z",
+                "name": "Kabir Hossen\r",
+                "email": "",
+                "address": "",
+                "phone": "06797393731",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Counselling",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nazmul",
+                "note": [],
+                "leadStatus": "Pending",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-05-21T00:00:00.000Z",
+                "lastContacted": "2026-05-21T00:00:00.000Z",
+                "followUpDate": "2026-07-28T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-05-20T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01811151933",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-03T00:00:00.000Z",
+                "name": "",
+                "email": "01827591761",
+                "address": "",
+                "phone": "01811151933",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Counselling",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "",
+                "note": [
+                    {
+                        "text": "send details",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Call later",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-02T00:00:00.000Z",
+                "lastContacted": "2026-06-02T00:00:00.000Z",
+                "followUpDate": "2026-07-07T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-03T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01638606672",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-02T00:00:00.000Z",
+                "name": "",
+                "email": "",
+                "address": "",
+                "phone": "01638606672",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Data Entry with freelancing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "laptop nei, nibe laptop as soon as",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Not Ready - PC/Basic",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-02T00:00:00.000Z",
+                "lastContacted": "2026-06-27T00:00:00.000Z",
+                "followUpDate": "2026-07-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-02T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01577443270",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-02T00:00:00.000Z",
+                "name": "Mehedi Hasan",
+                "email": "01715663797",
+                "address": "",
+                "phone": "01577443270",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Ethical Hacking",
+                        "courseType": "Online",
+                        "originalPrice": 3990,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 3990,
+                        "totalDue": 0,
+                        "enrolledAt": "2026-06-02T17:53:35.000Z",
+                        "history": [
+                            {
+                                "date": "2026-06-02T17:53:35.000Z",
+                                "paidAmount": 3990
+                            }
+                        ]
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "admit hoben, send details, payment done",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Enrolled",
+                "orderNumber": 4374256,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-02T00:00:00.000Z",
+                "lastContacted": "2026-06-27T00:00:00.000Z",
+                "followUpDate": "",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-02T00:00:00.000Z",
+                "totalPaid": 3990,
+                "totalDue": 0,
+                "enrolledAt": "2026-06-02T17:53:35.000Z"
+            }
+        },
+        {
+            "phone": "01710465895",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-05T00:00:00.000Z",
+                "name": "",
+                "email": "",
+                "address": "",
+                "phone": "01710465895",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Ethical Hacking",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "send details",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Call later",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-05T00:00:00.000Z",
+                "lastContacted": "2026-06-25T00:00:00.000Z",
+                "followUpDate": "2026-07-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-05T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01303379878",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-05-25T00:00:00.000Z",
+                "name": "Taufik Jamil",
+                "email": "",
+                "address": "",
+                "phone": "01303379878",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "SEO",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Aysha",
+                "note": [
+                    {
+                        "text": "cut the call",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Not Interested",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-07T00:00:00.000Z",
+                "lastContacted": "2026-06-07T00:00:00.000Z",
+                "followUpDate": "2026-07-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-05-25T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01846620486",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-06T00:00:00.000Z",
+                "name": "Sawon Majumder",
+                "email": "",
+                "address": "",
+                "phone": "01846620486",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nazmul",
+                "note": [
+                    {
+                        "text": "send details , janaben",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Call later",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-13T00:00:00.000Z",
+                "lastContacted": "2026-06-13T00:00:00.000Z",
+                "followUpDate": "2026-07-07T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-06T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "০১৯৭০৬২২৮২৬",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-07T00:00:00.000Z",
+                "name": "Sajib",
+                "email": "01970622826",
+                "address": "",
+                "phone": "০১৯৭০৬২২৮২৬",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Counselling",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nayela",
+                "note": [
+                    {
+                        "text": "number busy",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Number Off or Busy",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-13T00:00:00.000Z",
+                "lastContacted": "2026-06-13T00:00:00.000Z",
+                "followUpDate": "2026-07-07T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-07T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01706853503",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-13T00:00:00.000Z",
+                "name": "Afrin Islam",
+                "email": "islamafrin.503@gmail.com",
+                "address": "",
+                "phone": "01706853503",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Jannat",
+                "note": [
+                    {
+                        "text": "already enrolled",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Already Enrolled",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-14T00:00:00.000Z",
+                "lastContacted": "2026-06-14T00:00:00.000Z",
+                "followUpDate": "2026-07-07T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-13T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01625319463",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-14T00:00:00.000Z",
+                "name": "ENAM AHAMED",
+                "email": "anam17107@gmail.com",
+                "address": "",
+                "phone": "01625319463",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Jannat",
+                "note": [
+                    {
+                        "text": "send details , janaben, admitted",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Pending",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-14T00:00:00.000Z",
+                "lastContacted": "2026-07-11T00:00:00.000Z",
+                "followUpDate": "2026-07-12T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-14T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "974 3134 9372",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-15T00:00:00.000Z",
+                "name": "",
+                "email": "01881484898",
+                "address": "",
+                "phone": "974 3134 9372",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Online",
+                        "originalPrice": 4490,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 4490,
+                        "totalDue": 0,
+                        "enrolledAt": "2026-06-15T10:04:44.000Z",
+                        "history": [
+                            {
+                                "date": "2026-06-15T10:04:44.000Z",
+                                "paidAmount": 4490
+                            }
+                        ]
+                    }
+                ],
+                "callCount": 2,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "send details, payment korben",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Enrolled",
+                "orderNumber": 4375020,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-15T00:00:00.000Z",
+                "lastContacted": "2026-06-18T00:00:00.000Z",
+                "followUpDate": "2026-07-02T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-15T00:00:00.000Z",
+                "totalPaid": 4490,
+                "totalDue": 0,
+                "enrolledAt": "2026-06-15T10:04:44.000Z"
+            }
+        },
+        {
+            "phone": "81 90-3508-1459",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-18T00:00:00.000Z",
+                "name": "Mubin",
+                "email": "",
+                "address": "",
+                "phone": "81 90-3508-1459",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Python Programming with Django",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 2,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Atik",
+                "note": [
+                    {
+                        "text": "send details msg again",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Will Register Soon",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-20T00:00:00.000Z",
+                "lastContacted": "2026-06-25T00:00:00.000Z",
+                "followUpDate": "2026-07-05T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-18T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "966567602585",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-18T00:00:00.000Z",
+                "name": "Md Mahbubur Rahman",
+                "email": "",
+                "address": "",
+                "phone": "966567602585",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Graphic Design",
+                        "courseType": "Online",
+                        "originalPrice": 4490,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 4490,
+                        "totalDue": 0,
+                        "enrolledAt": "2026-07-07T08:41:27.000Z",
+                        "history": [
+                            {
+                                "date": "2026-07-07T08:41:27.000Z",
+                                "paidAmount": 4490
+                            }
+                        ]
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Atik",
+                "note": [
+                    {
+                        "text": "dublicate number , aage e kotha hoache, payment done",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Enrolled",
+                "orderNumber": 4375905,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-20T00:00:00.000Z",
+                "lastContacted": "2026-06-20T00:00:00.000Z",
+                "followUpDate": "2026-07-05T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-18T00:00:00.000Z",
+                "totalPaid": 4490,
+                "totalDue": 0,
+                "enrolledAt": "2026-07-07T08:41:27.000Z"
+            }
+        },
+        {
+            "phone": "01971805133",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-18T00:00:00.000Z",
+                "name": "Md.Ariful Islam\r",
+                "email": "",
+                "address": "",
+                "phone": "01971805133",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Python Programming with Django",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nazmul",
+                "note": [
+                    {
+                        "text": "send details again , aage o kotha hoache",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Will Register Soon",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-20T00:00:00.000Z",
+                "lastContacted": "2026-07-14T00:00:00.000Z",
+                "followUpDate": "2026-07-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-18T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "19292189050",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-06-20T00:00:00.000Z",
+                "name": "",
+                "email": "",
+                "address": "",
+                "phone": "19292189050",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nayela",
+                "note": [
+                    {
+                        "text": "already admitted, amr e learner",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Already Enrolled",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-06-21T00:00:00.000Z",
+                "lastContacted": "2026-06-21T00:00:00.000Z",
+                "followUpDate": "2026-07-02T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-06-20T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01866398825",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-02T00:00:00.000Z",
+                "name": "Rahat ",
+                "email": "",
+                "address": "",
+                "phone": "01866398825",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Complete Digital Marketing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Jannat",
+                "note": [
+                    {
+                        "text": "send details, pore korbe",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Pending",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-02T00:00:00.000Z",
+                "lastContacted": "2026-07-02T00:00:00.000Z",
+                "followUpDate": "2026-07-05T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-02T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01670035402",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-05T00:00:00.000Z",
+                "name": "",
+                "email": "",
+                "address": "",
+                "phone": "01670035402",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Professional Video Editing",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Jannat",
+                "note": [
+                    {
+                        "text": "marketplace nia guideline chacchen, send details",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Call later",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-06T00:00:00.000Z",
+                "lastContacted": "2026-07-06T00:00:00.000Z",
+                "followUpDate": "2026-07-12T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-05T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01867673606",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-05T00:00:00.000Z",
+                "name": "Instagram followers sale🤩\r",
+                "email": "01629891091",
+                "address": "",
+                "phone": "01867673606",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Graphic Design",
+                        "courseType": "Online",
+                        "originalPrice": 4490,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 4490,
+                        "totalDue": 0,
+                        "enrolledAt": "2026-07-12T12:36:33.000Z",
+                        "history": [
+                            {
+                                "date": "2026-07-12T12:36:33.000Z",
+                                "paidAmount": 4490
+                            }
+                        ]
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nazmul",
+                "note": [
+                    {
+                        "text": "send whatsapp msg, janaben",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Enrolled",
+                "orderNumber": 4378275,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-06T00:00:00.000Z",
+                "lastContacted": "2026-07-11T00:00:00.000Z",
+                "followUpDate": "2026-07-11T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-05T00:00:00.000Z",
+                "totalPaid": 4490,
+                "totalDue": 0,
+                "enrolledAt": "2026-07-12T12:36:33.000Z"
+            }
+        },
+        {
+            "phone": "01751435723",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-09T00:00:00.000Z",
+                "name": "al Amin",
+                "email": "",
+                "address": "",
+                "phone": "01751435723",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Graphic Design",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Nayela",
+                "note": [
+                    {
+                        "text": "send details, janaben, call not received",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Will Register Soon",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-09T00:00:00.000Z",
+                "lastContacted": "2026-07-15T00:00:00.000Z",
+                "followUpDate": "2026-07-16T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-09T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01885037548",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-15T00:00:00.000Z",
+                "name": "꧁༒𝓡𝓢 𝓡𝓐𝓕𝓘 ༒꧂",
+                "email": "",
+                "address": "",
+                "phone": "01885037548",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Ethical Hacking",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 2,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Jannat",
+                "note": [
+                    {
+                        "text": "send details, janaben",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Will Register Soon",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-15T00:00:00.000Z",
+                "lastContacted": "2026-07-16T00:00:00.000Z",
+                "followUpDate": "2026-07-18T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-15T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "01918897607",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-20T00:00:00.000Z",
+                "name": "",
+                "email": "",
+                "address": "",
+                "phone": "01918897607",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "Web Design (Video Course)",
+                        "courseType": "Not Specified",
+                        "originalPrice": 0,
+                        "leadDiscount": 0,
+                        "discountUnit": "flat",
+                        "totalPaid": 0,
+                        "totalDue": 0,
+                        "history": []
+                    }
+                ],
+                "callCount": 1,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "send details, janaben,",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Will Register Soon",
+                "orderNumber": null,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-20T00:00:00.000Z",
+                "lastContacted": "2026-07-21T00:00:00.000Z",
+                "followUpDate": "2026-07-22T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-20T00:00:00.000Z"
+            }
+        },
+        {
+            "phone": "33 7 80 16 56 27",
+            "reason": "Duplicate in upload payload",
+            "data": {
+                "createdAt": "2026-07-24T00:00:00.000Z",
+                "name": "Tahmina Akhter Chowdhury",
+                "email": "330780165627",
+                "address": "",
+                "phone": "33 7 80 16 56 27",
+                "fblink": "",
+                "courses": [
+                    {
+                        "courseName": "The Complete Web Development",
+                        "courseType": "Online",
+                        "originalPrice": 5990,
+                        "leadDiscount": 2000,
+                        "discountUnit": "flat",
+                        "totalPaid": 3990,
+                        "totalDue": 0,
+                        "enrolledAt": "2026-07-26T11:29:17.000Z",
+                        "history": [
+                            {
+                                "date": "2026-07-26T11:29:17.000Z",
+                                "paidAmount": 3990
+                            }
+                        ]
+                    }
+                ],
+                "callCount": 3,
+                "questions": {},
+                "sourceFileName": "Lead-Management-test-sheet - Sheet1 (54)_2026-08-27_11-48-42.csv",
+                "createdBy": "admin@eshikhon.com",
+                "entryBy": "Afifa",
+                "note": [
+                    {
+                        "text": "send details, janaben",
+                        "by": "",
+                        "createdAt": null
+                    }
+                ],
+                "leadStatus": "Enrolled",
+                "orderNumber": 4377107,
+                "interstedSeminar": "None",
+                "firstContacted": "2026-07-25T00:00:00.000Z",
+                "lastContacted": "2026-07-26T00:00:00.000Z",
+                "followUpDate": "2026-07-26T00:00:00.000Z",
+                "assignTo": "qrmse173.eshi@gmail.com",
+                "assignStatus": true,
+                "assignDate": "2026-07-24T00:00:00.000Z",
+                "totalPaid": 3990,
+                "totalDue": 0,
+                "enrolledAt": "2026-07-26T11:29:17.000Z"
+            }
+        }
+    ]
+}
