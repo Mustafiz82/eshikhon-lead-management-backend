@@ -67,6 +67,7 @@ const leadSchema = new mongoose.Schema(
     assignTo: { type: String, default: "N/A" },
     assignStatus: { type: Boolean, default: false },
     assignDate: { type: Date },
+    orderCompletionDate: { type: Date },
     leadType: {
       type: String,
       enum: ["potential leads", "open Pool"],

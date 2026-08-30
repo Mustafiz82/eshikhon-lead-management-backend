@@ -1414,6 +1414,7 @@ export const updateSingleLead = async (req, res) => {
       "firstContacted",
       "lastContacted",
       "enrolledAt",
+      "orderCompletionDate",
     ];
 
     // Helper to safely compare dates
