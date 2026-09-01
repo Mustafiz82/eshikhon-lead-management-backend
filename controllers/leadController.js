@@ -506,12 +506,97 @@ export const createLeadOld = async (req, res) => {
 };
 
 export const createSingleLead = async (req, res) => {
-  console.log(req.body);
   try {
-    const result = await lead.insertOne(req.body);
-    res.status(201).json(result);
+    const rawLead = req.body;
+
+    if (!rawLead || Object.keys(rawLead).length === 0) {
+      return res.status(400).json({ error: "No lead data provided" });
+    }
+
+    // Helper to extract course names
+    const getCourseNames = (l) => {
+      if (Array.isArray(l.courses) && l.courses.length > 0) {
+        return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
+      }
+      if (l.interstedCourse) {
+        return [l.interstedCourse.trim()];
+      }
+      return ["not provided"];
+    };
+
+    // Step 1️⃣ — Normalize payload
+    const normalizedLead = {
+      ...rawLead,
+      phone: String(rawLead.phone || "").trim(),
+      fblink: String(rawLead.fblink || "").trim(),
+      orderNumber: rawLead.orderNumber ? Number(rawLead.orderNumber) : null,
+    };
+
+    // Step 2️⃣ — Build the duplicate query
+    let duplicateQuery = null;
+
+    if (normalizedLead.orderNumber) {
+      // Check 1: If order number exists, only check by order number
+      duplicateQuery = { orderNumber: normalizedLead.orderNumber };
+    } else {
+      // Check 2: Fallback to Phone/FB + Course match
+      const courseNames = getCourseNames(normalizedLead);
+
+      const courseCondition = [
+        { "courses.courseName": { $in: courseNames } },
+        { interstedCourse: { $in: courseNames } },
+      ];
+
+      const matchConditions = [];
+
+      if (normalizedLead.phone) {
+        matchConditions.push({
+          phone: normalizedLead.phone,
+          $or: courseCondition,
+        });
+      }
+
+      if (normalizedLead.fblink) {
+        matchConditions.push({
+          fblink: normalizedLead.fblink,
+          $or: courseCondition,
+        });
+      }
+
+      if (matchConditions.length > 0) {
+        duplicateQuery = { $or: matchConditions };
+      }
+    }
+
+    // Step 3️⃣ — Check if duplicate exists in the Database
+    if (duplicateQuery) {
+      const existingLead = await lead.findOne(duplicateQuery).lean();
+
+      if (existingLead) {
+        const reason = normalizedLead.orderNumber
+          ? `Lead with Order Number (${normalizedLead.orderNumber}) already exists.`
+          : `Lead with this Phone/Facebook Link and Course already exists.`;
+
+        return res.status(409).json({
+          success: false,
+          error: "Duplicate Lead",
+          reason,
+          existingLead,
+        });
+      }
+    }
+
+    // Step 4️⃣ — Insert the unique lead
+    const result = await lead.insertOne(normalizedLead);
+
+    return res.status(201).json({
+      success: true,
+      message: "Lead created successfully",
+      data: result,
+    });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error("createSingleLead error:", error);
+    return res.status(500).json({ error: error.message });
   }
 };
 

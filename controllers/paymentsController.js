@@ -837,8 +837,15 @@ const buildCommissionPipeline = ({ email, monthKey }) => {
         monthlyPayments: [
           {
             $match: {
-              $expr: { $ne: [{ $toLower: { $ifNull: ["$leadStatus", ""] } }, "enrolled with other number"] }
-            }
+              $expr: {
+                $not: {
+                  $in: [
+                    { $toLower: { $ifNull: ["$leadStatus", ""] } },
+                    ["enrolled with other number", "on hold"],
+                  ],
+                },
+              },
+            },
           },
           { $unwind: { path: "$courses", preserveNullAndEmptyArrays: false } },
           { $unwind: { path: "$courses.history", preserveNullAndEmptyArrays: false } },
