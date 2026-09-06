@@ -12,9 +12,11 @@ export const createFileName = async (req ,res) => {
 
 
 
+
+
 export const getAllFileNames = async (req, res) => {
     try {
-        const files = await fileHistory.find().sort({ date: -1 })
+        const files = await fileHistory.find().sort({ date: -1 }).limit(20)
         return res.status(200).json(files)
     } catch (error) {
         return res.status(400).json({ error: error.message })
