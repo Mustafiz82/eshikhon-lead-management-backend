@@ -646,9 +646,12 @@ export const getAllLeads = async (req, res) => {
       leadStatus,
       stage,
       assignDate,
+      createdDate,
       paymentMode,
       assignStartDate,
       assignEndDate,
+      createdStartDate,
+      createdEndDate,
       paymentStartDate,
       paymentEndDate,
       showOnlyFollowups,
@@ -663,6 +666,18 @@ export const getAllLeads = async (req, res) => {
       upcomingPaymentsDate,
       missedFollowUpDate,
     } = req.query;
+
+    const createdStartDateFormat = new Date(createdStartDate);
+    const createdEndDateFormat = new Date(createdEndDate);
+
+    if (createdEndDateFormat.getUTCHours() === 18) {
+      createdEndDateFormat.setUTCDate(createdEndDateFormat.getUTCDate() + 1);
+      createdEndDateFormat.setUTCHours(17, 59, 59, 999);
+    } else {
+      createdEndDateFormat.setUTCHours(23, 59, 59, 999);
+    }
+
+
 
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
@@ -781,6 +796,12 @@ export const getAllLeads = async (req, res) => {
       else filter.leadStatus = { $ne: "Pending" };
     }
 
+    if (createdDate === "DateRange" && createdStartDate && createdEndDate) {
+      filter.createdAt = {
+        $gte: createdStartDateFormat,
+        $lte: createdEndDateFormat,
+      };
+    }
     if (assignDate === "DateRange" && assignStartDate && assignEndDate) {
       filter.assignDate = {
         $gte: assignStartDateFormat,
@@ -1179,6 +1200,9 @@ export const getLeadsCount = async (req, res) => {
       limit,
       currentPage,
       createdBy,
+         createdDate,
+            createdStartDate,
+      createdEndDate,
       assignTo,
       leadStatus,
       stage,
@@ -1220,6 +1244,19 @@ export const getLeadsCount = async (req, res) => {
     } else {
       paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
+
+
+    
+    const createdStartDateFormat = new Date(createdStartDate);
+    const createdEndDateFormat = new Date(createdEndDate);
+
+    if (createdEndDateFormat.getUTCHours() === 18) {
+      createdEndDateFormat.setUTCDate(createdEndDateFormat.getUTCDate() + 1);
+      createdEndDateFormat.setUTCHours(17, 59, 59, 999);
+    } else {
+      createdEndDateFormat.setUTCHours(23, 59, 59, 999);
+    }
+
 
     // 1. Status
     if (status && status !== "All") {
@@ -1321,6 +1358,13 @@ export const getLeadsCount = async (req, res) => {
       filter.assignDate = {
         $gte: assignStartDateFormat,
         $lte: assignEndDateFormat,
+      };
+    }
+
+       if (createdDate === "DateRange" && createdStartDate && createdEndDate) {
+      filter.createdAt = {
+        $gte: createdStartDateFormat,
+        $lte: createdEndDateFormat,
       };
     }
 
