@@ -3,6 +3,7 @@ import User from "../models/user.js";
 import Lead from "../models/lead.js";
 import course from "../models/course.js";
 import { calculateCommissionBreakdown } from "../utils/commissionCalculator.js";
+import { CallLog } from "../models/CallLog.js";
 
 
 export const getLeaderboards = async (req, res) => {
@@ -3550,7 +3551,7 @@ export const getLeadsGrowth = async (req, res) => {
   }
 };
 
-export const getDailyCallCount = async (req, res) => {
+export const getDailyCallCountOld = async (req, res) => {
   try {
     const month = parseInt(req.query.month) || new Date().getMonth() + 1; // 1-12
     const year = parseInt(req.query.year) || new Date().getFullYear();
@@ -3625,6 +3626,92 @@ export const getDailyCallCount = async (req, res) => {
           (activeUsers.find((u) => u.email === s._id.agent)?.name ||
             s._id.agent),
       );
+      if (idx !== -1) {
+        result[idx].calls[s._id.day - 1] = s.callCount;
+      }
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+export const getDailyCallCount = async (req, res) => {
+  try {
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1; // 1-12
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 1);
+
+    console.log(startOfMonth);
+    console.log(endOfMonth);
+
+    // ✅ Only fetch users that are not admin
+    const activeUsers = await User.find(
+      { role: "user" },
+      { email: 1, name: 1 }
+    ).lean();
+
+    const activeEmails = activeUsers.map((u) => u.email.toLowerCase());
+
+    const stats = await CallLog.aggregate([
+      {
+        $match: {
+          agentEmail: { $in: activeEmails },
+          calledAt: { $gte: startOfMonth, $lt: endOfMonth },
+          leadStatus: {
+            $in: [
+              "Enrolled",
+              "Will Join on Seminar",
+              "Joined on seminar",
+              "Not Interested",
+              "Enrolled in Other Institute",
+              "Enrolled with Other Number",
+              "Call declined",
+              "Call later",
+              "Will Register Soon",
+              "Will Register Later",
+              "Already Enrolled",
+              "Not Ready - PC/Basic",
+              "On hold",
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            agent: "$agentEmail",
+            day: { $dayOfMonth: "$calledAt" },
+          },
+          callCount: { $sum: 1 },
+          rawContactedDates: { $push: "$calledAt" },
+        },
+      },
+      { $sort: { "_id.agent": 1, "_id.day": 1 } },
+    ]);
+
+    console.log("states");
+    console.log(stats);
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const result = activeUsers.map((user) => ({
+      name: user.name || user.email,
+      calls: Array(daysInMonth).fill(0),
+    }));
+
+    console.log("result");
+    console.log(result);
+
+    stats.forEach((s) => {
+      const matchedUser = activeUsers.find(
+        (u) => u.email.toLowerCase() === s._id.agent.toLowerCase()
+      );
+      const targetName = matchedUser?.name || matchedUser?.email || s._id.agent;
+
+      const idx = result.findIndex((r) => r.name === targetName);
       if (idx !== -1) {
         result[idx].calls[s._id.day - 1] = s.callCount;
       }

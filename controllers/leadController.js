@@ -3,6 +3,7 @@ import lead from "../models/lead.js";
 import course from "../models/course.js";
 import user from "../models/user.js";
 import axios from "axios";
+import { CallLog } from "../models/CallLog.js";
 
 export const createLead = async (req, res) => {
   try {
@@ -1775,6 +1776,25 @@ export const updateSingleLead = async (req, res) => {
     }
 
     const savedLead = await leadDoc.save();
+
+
+    if (
+      changedFields["lastContacted"] &&
+      updates.lastContacted &&
+      changedFields["lastContacted"].new !== "Not Set"
+    ) {
+      const agentEmail = updates.assignTo || leadDoc.assignTo;
+
+      if (agentEmail) {
+        await CallLog.create({
+          leadId: leadDoc._id,
+          agentEmail: agentEmail,
+          leadStatus: updates.leadStatus || leadDoc.leadStatus || "Unknown",
+          calledAt: new Date(updates.lastContacted),
+        });
+      }
+    }
+
     res.json(savedLead);
   } catch (e) {
     console.error("Update Lead Error:", e);
