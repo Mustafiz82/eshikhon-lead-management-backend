@@ -3,7 +3,7 @@ import User from "../models/user.js";
 import Lead from "../models/lead.js";
 import course from "../models/course.js";
 import { calculateCommissionBreakdown } from "../utils/commissionCalculator.js";
-import { CallLog } from "../models/CallLog.js";
+import { CallLog } from "../models/callLogs.js";
 
 
 export const getLeaderboards = async (req, res) => {

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import lead from "../models/lead.js";
 import { connectDB } from "../config/db.js";
-import { CallLog } from "../models/CallLog.js";
+import { CallLog } from "../models/callLogs.js";
 import "dotenv/config";
 
 const MONGO_URI = process.env.MONGODB_URI;

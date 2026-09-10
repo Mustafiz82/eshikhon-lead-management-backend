@@ -3,7 +3,7 @@ import lead from "../models/lead.js";
 import course from "../models/course.js";
 import user from "../models/user.js";
 import axios from "axios";
-import { CallLog } from "../models/CallLog.js";
+import { CallLog } from "../models/callLogs.js";
 
 export const createLead = async (req, res) => {
   try {
