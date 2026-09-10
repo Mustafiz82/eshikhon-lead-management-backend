@@ -3563,7 +3563,7 @@ export const getDailyCallCount = async (req, res) => {
 
     // ✅ Only fetch users that are not admin
     const activeUsers = await User.find(
-      { role: { $ne: "admin" } },
+      { role: "user"},
       { email: 1, name: 1 },
     );
 
@@ -3573,7 +3573,7 @@ export const getDailyCallCount = async (req, res) => {
       {
         $match: {
           assignTo: { $in: activeUsers.map((u) => u.email) },
-          // lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
+          lastContacted: { $gte: startOfMonth, $lt: endOfMonth },
           leadStatus: {
             $in: [
               "Enrolled",
