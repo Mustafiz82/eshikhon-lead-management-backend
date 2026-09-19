@@ -6,7 +6,7 @@ const commissionPaymentSchema = new mongoose.Schema(
     agentName: { type: String, default: "" },
     monthKey: { type: String, required: true, trim: true },
 
-    amount: { type: Number, required: true, min: 0 },
+    amount: { type: Number, required: true  },
 
     method: { type: String, default: "" },
     reference: { type: String, default: "" },

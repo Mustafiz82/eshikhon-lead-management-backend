@@ -1136,79 +1136,208 @@ export const getCommissionList = async (req, res) => {
 
 // --- OTHER EXISTING FUNCTIONS ---
 
+// export const payCommission = async (req, res) => {
+//   try {
+//     const {
+//       agentEmail,
+//       monthKey,
+//       amount,
+//       method,
+//       reference,
+//       note,
+//       payer,
+//       payee,
+//     } = req.body;
+
+//     if (!agentEmail || !monthKey) {
+//       return res
+//         .status(400)
+//         .json({ error: "agentEmail and monthKey required" });
+//     }
+
+//     const amt = Number(amount);
+//     if (!Number.isFinite(amt) || amt <= 0) {
+//       return res.status(400).json({ error: "amount must be positive" });
+//     }
+
+//     const snap = await commissionSnapshot
+//       .findOne({
+//         agentEmail: agentEmail.toLowerCase(),
+//         monthKey,
+//       })
+//       .lean();
+
+//     if (!snap) {
+//       return res.status(400).json({ error: "snapshot not found" });
+//     }
+
+//     const userDoc = await user.findOne({ email: agentEmail.toLowerCase() });
+
+//     const snapshot = userDoc?.paymentInfo || {};
+
+//     const payment = await commissionPayment.create({
+//       agentEmail: agentEmail.toLowerCase(),
+//       agentName: snap.agentName || "",
+//       monthKey,
+//       amount: amt,
+//       method: method || "",
+//       reference: reference || "",
+//       note: note || "",
+
+//       payer: {
+//         name: payer?.name || "",
+//         number: payer?.number || "",
+//         accountType: payer?.accountType || "",
+//       },
+
+//       payee: {
+//         name: payee?.name || "",
+//         number: payee?.number || "",
+//         accountDetails: payee?.accountDetails || "",
+//       },
+
+//       paymentInfoSnapshot: {
+//         name: snapshot.name,
+//         accountNumber: snapshot.accountNumber,
+//         accountDetails: snapshot.accountDetails,
+//       },
+
+//       paidBy: "admin",
+//       status: "completed",
+//     });
+
+//     return res.status(201).json({
+//       message: "paid saved",
+//       payment,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(400).json({ error: error.message });
+//   }
+// };
+
 export const payCommission = async (req, res) => {
   try {
     const {
       agentEmail,
       monthKey,
       amount,
+      directAmount = 0,
+      adjustedAmount = 0,
+      adjustFromMonthKey = "",
+      adjustFromMonthLabel = "",
       method,
       reference,
-      note,
+      note = "",
       payer,
       payee,
     } = req.body;
 
     if (!agentEmail || !monthKey) {
-      return res
-        .status(400)
-        .json({ error: "agentEmail and monthKey required" });
+      return res.status(400).json({ error: "agentEmail and monthKey required" });
     }
 
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      return res.status(400).json({ error: "amount must be positive" });
-    }
-
-    const snap = await commissionSnapshot
-      .findOne({
-        agentEmail: agentEmail.toLowerCase(),
-        monthKey,
-      })
-      .lean();
-
+    const email = agentEmail.toLowerCase();
+    const snap = await commissionSnapshot.findOne({ agentEmail: email, monthKey }).lean();
     if (!snap) {
-      return res.status(400).json({ error: "snapshot not found" });
+      return res.status(400).json({ error: "Target month snapshot not found" });
     }
 
-    const userDoc = await user.findOne({ email: agentEmail.toLowerCase() });
-
+    const userDoc = await user.findOne({ email });
     const snapshot = userDoc?.paymentInfo || {};
 
-    const payment = await commissionPayment.create({
-      agentEmail: agentEmail.toLowerCase(),
-      agentName: snap.agentName || "",
-      monthKey,
-      amount: amt,
-      method: method || "",
-      reference: reference || "",
-      note: note || "",
+    const numDirect = Number(directAmount || (adjustedAmount ? 0 : amount) || 0);
+    const numAdjusted = Number(adjustedAmount || 0);
 
-      payer: {
-        name: payer?.name || "",
-        number: payer?.number || "",
-        accountType: payer?.accountType || "",
-      },
+    if (numDirect <= 0 && numAdjusted <= 0) {
+      return res.status(400).json({ error: "Payment or adjustment amount must be greater than 0" });
+    }
 
-      payee: {
-        name: payee?.name || "",
-        number: payee?.number || "",
-        accountDetails: payee?.accountDetails || "",
-      },
+    const createdPayments = [];
 
-      paymentInfoSnapshot: {
-        name: snapshot.name,
-        accountNumber: snapshot.accountNumber,
-        accountDetails: snapshot.accountDetails,
-      },
+    // -------------------------------------------------------------
+    // 1. HANDLE CROSS-MONTH ADJUSTMENT (IF SELECTED)
+    // -------------------------------------------------------------
+    if (numAdjusted > 0 && adjustFromMonthKey) {
+      const sourceSnap = await commissionSnapshot.findOne({ agentEmail: email, monthKey: adjustFromMonthKey }).lean();
+      const sourceLabel = adjustFromMonthLabel || sourceSnap?.monthLabel || adjustFromMonthKey;
+      const targetLabel = snap.monthLabel || monthKey;
 
-      paidBy: "admin",
-      status: "completed",
-    });
+      // 1A. Credit entry for Target Month (Positive)
+      const targetAdjPayment = await commissionPayment.create({
+        agentEmail: email,
+        agentName: snap.agentName || "",
+        monthKey,
+        amount: numAdjusted,
+        method: "adjustment",
+        reference: reference || "",
+        note: `Adjusted ${numAdjusted} ৳ from ${sourceLabel} overpayment.${note ? ` Note: ${note}` : ""}`.trim(),
+        payer: { name: "System Adjustment", number: "", accountType: "adjustment" },
+        payee: {
+          name: payee?.name || snapshot.name || "",
+          number: payee?.number || snapshot.accountNumber || "",
+          accountDetails: payee?.accountDetails || snapshot.accountDetails || "",
+        },
+        paymentInfoSnapshot: snapshot,
+        paidBy: "admin",
+        status: "completed",
+      });
+      createdPayments.push(targetAdjPayment);
+
+      // 1B. Offset entry for Source Month (Negative deduction)
+      const sourceAdjPayment = await commissionPayment.create({
+        agentEmail: email,
+        agentName: snap.agentName || "",
+        monthKey: adjustFromMonthKey,
+        amount: -numAdjusted,
+        method: "adjustment",
+        reference: reference || "",
+        note: `Adjusted ${numAdjusted} ৳ to settle ${targetLabel} commission.${note ? ` Note: ${note}` : ""}`.trim(),
+        payer: { name: "System Adjustment", number: "", accountType: "adjustment" },
+        payee: {
+          name: payee?.name || snapshot.name || "",
+          number: payee?.number || snapshot.accountNumber || "",
+          accountDetails: payee?.accountDetails || snapshot.accountDetails || "",
+        },
+        paymentInfoSnapshot: snapshot,
+        paidBy: "admin",
+        status: "completed",
+      });
+      createdPayments.push(sourceAdjPayment);
+    }
+
+    // -------------------------------------------------------------
+    // 2. HANDLE DIRECT CASH/BANK PAYMENT (IF ANY)
+    // -------------------------------------------------------------
+    if (numDirect > 0) {
+      const directPayment = await commissionPayment.create({
+        agentEmail: email,
+        agentName: snap.agentName || "",
+        monthKey,
+        amount: numDirect,
+        method: method || payer?.accountType || "manual",
+        reference: reference || "",
+        note: note || "",
+        payer: {
+          name: payer?.name || "",
+          number: payer?.number || "",
+          accountType: payer?.accountType || "",
+        },
+        payee: {
+          name: payee?.name || "",
+          number: payee?.number || "",
+          accountDetails: payee?.accountDetails || "",
+        },
+        paymentInfoSnapshot: snapshot,
+        paidBy: "admin",
+        status: "completed",
+      });
+      createdPayments.push(directPayment);
+    }
 
     return res.status(201).json({
-      message: "paid saved",
-      payment,
+      message: "Payment processed successfully",
+      payments: createdPayments,
     });
   } catch (error) {
     console.error(error);
