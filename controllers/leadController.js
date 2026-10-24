@@ -5,137 +5,508 @@ import user from "../models/user.js";
 import axios from "axios";
 import { CallLog } from "../models/callLogs.js";
 
+// export const createLead = async (req, res) => {
+//   try {
+//     let leads = Array.isArray(req.body) ? req.body : [req.body];
+
+//     // Helper to extract course names
+//     const getCourseNames = (l) => {
+//       if (Array.isArray(l.courses) && l.courses.length > 0) {
+//         return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
+//       }
+//       if (l.interstedCourse) {
+//         return [l.interstedCourse.trim()];
+//       }
+//       return ["not provided"];
+//     };
+
+//     // Step 1️⃣ — Normalize phone and orderNumber
+//     leads = leads.map((l) => ({
+//       ...l,
+//       phone: String(l.phone || "").trim(),
+//       fblink: String(l.fblink || "").trim(),
+//       orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
+//     }));
+
+//     if (leads.length === 0) {
+//       return res.status(400).json({ error: "No leads provided" });
+//     }
+
+//     const duplicatesInPayload = [];
+//     const duplicatesInDB = [];
+//     const uniqueIncoming = [];
+
+//     // Step 2️⃣ — Remove duplicates inside the SAME upload payload
+//     const seenPairs = new Set();
+//     const seenOrderNumbers = new Set(); // Track seen order numbers in payload
+
+//     for (const l of leads) {
+//       let isPayloadDuplicate = false;
+
+//       if (l.orderNumber) {
+//         // If order number is present, only check if this order number was already seen
+//         if (seenOrderNumbers.has(l.orderNumber)) {
+//           isPayloadDuplicate = true;
+//         }
+//       } else {
+//         // If NO order number, fall back to Phone + Course check
+//         const courseNames = getCourseNames(l);
+//         for (const name of courseNames) {
+//           const cleanCourse = name.toLowerCase();
+
+//           if (l.phone) {
+//             const phoneKey = `phone__${l.phone}__${cleanCourse}`;
+//             if (seenPairs.has(phoneKey)) {
+//               isPayloadDuplicate = true;
+//               break;
+//             }
+//           }
+
+//           if (l.fblink) {
+//             const fbKey = `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`;
+//             if (seenPairs.has(fbKey)) {
+//               isPayloadDuplicate = true;
+//               break;
+//             }
+//           }
+//         }
+//       }
+
+//       if (isPayloadDuplicate) {
+//         duplicatesInPayload.push(l);
+//       } else {
+//         // Track unique keys for future checks in the loop
+//         if (l.orderNumber) {
+//           seenOrderNumbers.add(l.orderNumber);
+//         }
+
+//         // Still register the phone/course pairs in case a subsequent lead has NO order number
+//         const courseNames = getCourseNames(l);
+//         for (const name of courseNames) {
+//           const cleanCourse = name.toLowerCase();
+//           if (l.phone) {
+//             seenPairs.add(`phone__${l.phone}__${cleanCourse}`);
+//           }
+//           if (l.fblink) {
+//             seenPairs.add(`fblink__${l.fblink.toLowerCase()}__${cleanCourse}`);
+//           }
+//         }
+//         uniqueIncoming.push(l);
+//       }
+//     }
+
+//     // Step 3️⃣ — Find which unique candidates ALREADY exist in DB
+//     let existingPairs = new Set();
+//     let existingOrderNumbers = new Set(); // Track existing order numbers in DB
+
+//     if (uniqueIncoming.length > 0) {
+//       const incomingOrderNumbers = [];
+//       const dbConditions = [];
+
+//       uniqueIncoming.forEach((l) => {
+//         if (l.orderNumber) {
+//           incomingOrderNumbers.push(l.orderNumber);
+//         } else {
+//           // Only fetch Phone + Course records for leads without an order number
+//           const courseNames = getCourseNames(l);
+//           const courseQuery = [
+//             { "courses.courseName": { $in: courseNames } },
+//             { interstedCourse: { $in: courseNames } },
+//           ];
+
+//           if (l.phone) {
+//             dbConditions.push({ phone: l.phone, $or: courseQuery });
+//           }
+//           if (l.fblink) {
+//             dbConditions.push({ fblink: l.fblink, $or: courseQuery });
+//           }
+//         }
+//       });
+
+//       // Combined query
+//       const mongoQuery = [];
+//       if (incomingOrderNumbers.length > 0) {
+//         mongoQuery.push({ orderNumber: { $in: incomingOrderNumbers } });
+//       }
+//       if (dbConditions.length > 0) {
+//         mongoQuery.push(...dbConditions);
+//       }
+
+//       if (mongoQuery.length > 0) {
+//         const existing = await lead
+//           .find(
+//             { $or: mongoQuery },
+//             {
+//               phone: 1,
+//               fblink: 1,
+//               interstedCourse: 1,
+//               courses: 1,
+//               orderNumber: 1,
+//             },
+//           )
+//           .lean();
+
+//         existing.forEach((e) => {
+//           if (e.orderNumber) {
+//             existingOrderNumbers.add(Number(e.orderNumber));
+//           }
+
+//           const addDbPairs = (courseName) => {
+//             const cleanCourse = courseName.trim().toLowerCase();
+//             if (e.phone) {
+//               existingPairs.add(`phone__${e.phone}__${cleanCourse}`);
+//             }
+//             if (e.fblink) {
+//               existingPairs.add(
+//                 `fblink__${e.fblink.trim().toLowerCase()}__${cleanCourse}`,
+//               );
+//             }
+//           };
+
+//           if (e.interstedCourse) {
+//             addDbPairs(e.interstedCourse);
+//           }
+//           if (Array.isArray(e.courses)) {
+//             e.courses.forEach((c) => {
+//               if (c.courseName) {
+//                 addDbPairs(c.courseName);
+//               }
+//             });
+//           }
+//         });
+//       }
+//     }
+
+//     // Step 4️⃣ — Separate New Leads from DB Duplicates
+//     const newLeads = [];
+
+//     for (const l of uniqueIncoming) {
+//       let isDuplicate = false;
+
+//       if (l.orderNumber) {
+//         // If an order number is present, it's only a duplicate if that order number exists in the DB
+//         isDuplicate = existingOrderNumbers.has(l.orderNumber);
+//       } else {
+//         // If NO order number is present, fall back to Phone + Course validation
+//         const courseNames = getCourseNames(l);
+//         isDuplicate = courseNames.some((name) => {
+//           const cleanCourse = name.toLowerCase();
+//           const hasPhoneMatch =
+//             l.phone && existingPairs.has(`phone__${l.phone}__${cleanCourse}`);
+//           const hasFbMatch =
+//             l.fblink &&
+//             existingPairs.has(
+//               `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`,
+//             );
+//           return hasPhoneMatch || hasFbMatch;
+//         });
+//       }
+
+//       if (isDuplicate) {
+//         duplicatesInDB.push(l);
+//       } else {
+//         newLeads.push(l);
+//       }
+//     }
+
+//     // Step 5️⃣ — Insert unique leads
+//     let inserted = [];
+//     const failedInsertions = [];
+
+//     if (newLeads.length > 0) {
+//       try {
+//         inserted = await lead.insertMany(newLeads, { ordered: false });
+//       } catch (insertError) {
+//         if (insertError.insertedDocs) {
+//           inserted = insertError.insertedDocs;
+//         }
+
+//         if (insertError.writeErrors && Array.isArray(insertError.writeErrors)) {
+//           insertError.writeErrors.forEach((we) => {
+//             const failedLead = newLeads[we.index];
+//             if (failedLead) {
+//               failedInsertions.push({
+//                 phone: failedLead.phone || "N/A",
+//                 reason: `DB Error: ${we.errmsg || insertError.message}`,
+//                 data: failedLead,
+//               });
+//             }
+//           });
+//         } else {
+//           const insertedPhoneSet = new Set(
+//             inserted.map((i) => String(i.phone)),
+//           );
+//           newLeads.forEach((l) => {
+//             if (!insertedPhoneSet.has(String(l.phone))) {
+//               failedInsertions.push({
+//                 phone: l.phone || "N/A",
+//                 reason: insertError.message || "Insertion failed",
+//                 data: l,
+//               });
+//             }
+//           });
+//         }
+//       }
+//     }
+
+//     // Step 6️⃣ — Consolidate logs
+//     const notInsertedLeads = [
+//       ...duplicatesInPayload.map((l) => ({
+//         phone: l.phone || "N/A",
+//         reason: "Duplicate in upload payload",
+//         data: l,
+//       })),
+//       ...duplicatesInDB.map((l) => ({
+//         phone: l.phone || "N/A",
+//         reason: "Already exists in database (Phone+Course or Order Number)",
+//         data: l,
+//       })),
+//       ...failedInsertions,
+//     ];
+
+//     const totalSkipped = notInsertedLeads.length;
+
+//     return res.status(201).json({
+//       ok: inserted.length > 0,
+//       message: `${inserted.length} new leads added, ${totalSkipped} skipped/failed.`,
+//       insertedCount: inserted.length,
+//       skippedCount: totalSkipped,
+//       notInsertedLeads,
+//       insertedLeads: inserted,
+//       duplicatesInPayload,
+//       duplicatesInDB,
+//       failedInsertions,
+//     });
+//   } catch (error) {
+//     console.error("createLead error:", error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+
+
+// ---------- Helpers (keep these directly above createLead) ----------
+
+// Strip spaces, dashes, +91 etc. and keep the last 10 digits
+const normPhone = (p) =>
+  String(p || "")
+    .replace(/\D/g, "")
+    .slice(-10);
+
+// Lowercase, trim and remove trailing slashes
+const normFb = (f) =>
+  String(f || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\/+$/, "");
+
+// Is this course name a "counselling" course? (counselling / counseling / Counselling Session ...)
+const isCounsellingName = (name) => String(name || "").toLowerCase().includes("counsel");
+
+// Is this course name "not provided"?
+const isNotProvidedName = (name) => String(name || "").toLowerCase() === "not provided";
+
+// Collect all course names of a lead (works for payload leads and DB leads)
+const getCourseNames = (l) => {
+  let names = [];
+
+  if (Array.isArray(l.courses) && l.courses.length > 0) {
+    names = l.courses
+      .map((c) => (c && c.courseName ? String(c.courseName).trim().toLowerCase() : ""))
+      .filter(Boolean);
+  }
+
+  if (l.interstedCourse) {
+    const single = String(l.interstedCourse).trim().toLowerCase();
+    if (single) names.push(single);
+  }
+
+  return names.length > 0 ? [...new Set(names)] : ["not provided"];
+};
+
+// Identity keys of a lead (phone and/or facebook link)
+const contactKeys = (l) => {
+  const keys = [];
+  const phone = normPhone(l.phone);
+  const fb = normFb(l.fblink);
+  if (phone) keys.push(`phone__${phone}`);
+  if (fb) keys.push(`fb__${fb}`);
+  return keys;
+};
+
+// Different ways a phone number may be stored in the DB
+const phoneVariants = (raw, norm) => {
+  const list = [];
+  if (norm) {
+    list.push(norm, `0${norm}`, `91${norm}`, `+91${norm}`, `+91 ${norm}`, `+91-${norm}`);
+  }
+  if (raw) list.push(raw);
+  return list;
+};
+
+// Different ways a facebook link may be stored in the DB
+const fbVariants = (raw, norm) => {
+  const list = [];
+  if (norm) list.push(norm, `${norm}/`);
+  if (raw) list.push(raw);
+  return list;
+};
+
+// Compare incoming course list against ONE existing course list.
+// Returns a reason string if it is a duplicate, otherwise null.
+const getConflictReason = (incomingCourses, existingCourses) => {
+  // 1) Existing lead is marked as counselling -> block ANY course
+  if (existingCourses.some(isCounsellingName)) {
+    return "This lead has course set to Counselling, so this lead will be duplicated";
+  }
+
+  // 2) Incoming lead is counselling but this contact already has some course
+  if (incomingCourses.some(isCounsellingName)) {
+    return `This contact already exists with course (${existingCourses.join(", ")}), so a Counselling lead will be duplicated`;
+  }
+
+  // 3) Existing lead has no course specified -> block
+  if (existingCourses.some(isNotProvidedName)) {
+    return "This contact already exists with no course specified, so this lead will be duplicated";
+  }
+
+  // 4) Incoming lead has no course specified but contact already exists -> block
+  if (incomingCourses.some(isNotProvidedName)) {
+    return `This contact already exists with course (${existingCourses.join(", ")}), so a lead with no course will be duplicated`;
+  }
+
+  // 5) Same specific course
+  const overlap = incomingCourses.filter((c) => existingCourses.includes(c));
+  if (overlap.length > 0) {
+    return `This contact already exists with the same course (${overlap.join(", ")})`;
+  }
+
+  return null;
+};
+
+// Check an incoming lead against a Map(contactKey -> array of course arrays)
+const findContactConflict = (l, contactMap) => {
+  const incomingCourses = getCourseNames(l);
+  const keys = contactKeys(l);
+
+  // Counselling reason has the highest priority, so check all matches and prefer it
+  let firstReason = null;
+
+  for (const k of keys) {
+    const list = contactMap.get(k) || [];
+    for (const existingCourses of list) {
+      const reason = getConflictReason(incomingCourses, existingCourses);
+      if (reason) {
+        if (existingCourses.some(isCounsellingName)) {
+          return reason;
+        }
+        if (!firstReason) firstReason = reason;
+      }
+    }
+  }
+
+  return firstReason;
+};
+
+// ---------- Controller ----------
+
 export const createLead = async (req, res) => {
   try {
     let leads = Array.isArray(req.body) ? req.body : [req.body];
-
-    // Helper to extract course names
-    const getCourseNames = (l) => {
-      if (Array.isArray(l.courses) && l.courses.length > 0) {
-        return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
-      }
-      if (l.interstedCourse) {
-        return [l.interstedCourse.trim()];
-      }
-      return ["not provided"];
-    };
-
-    // Step 1️⃣ — Normalize phone and orderNumber
-    leads = leads.map((l) => ({
-      ...l,
-      phone: String(l.phone || "").trim(),
-      fblink: String(l.fblink || "").trim(),
-      orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
-    }));
 
     if (leads.length === 0) {
       return res.status(400).json({ error: "No leads provided" });
     }
 
-    const duplicatesInPayload = [];
-    const duplicatesInDB = [];
+    // Keep the raw phone / fblink values (needed to find old, un-normalized DB records)
+    const rawPhones = leads.map((l) => String(l.phone || "").trim());
+    const rawFbs = leads.map((l) => String(l.fblink || "").trim());
+
+    // Step 1 — Normalize phone, fblink and orderNumber
+    leads = leads.map((l) => ({
+      ...l,
+      phone: normPhone(l.phone),
+      fblink: normFb(l.fblink),
+      orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
+    }));
+
+    const duplicatesInPayloadWithReason = [];
+    const duplicatesInDBWithReason = [];
     const uniqueIncoming = [];
 
-    // Step 2️⃣ — Remove duplicates inside the SAME upload payload
-    const seenPairs = new Set();
-    const seenOrderNumbers = new Set(); // Track seen order numbers in payload
+    // Step 2 — Remove duplicates inside the SAME upload payload
+    const seenContacts = new Map(); // contactKey -> array of course arrays
+    const seenOrderNumbers = new Set();
 
     for (const l of leads) {
-      let isPayloadDuplicate = false;
+      const courses = getCourseNames(l);
+      const keys = contactKeys(l);
+
+      let reason = null;
+
+      if (l.orderNumber && seenOrderNumbers.has(l.orderNumber)) {
+        reason = `Duplicate order number (${l.orderNumber}) in upload payload`;
+      }
+
+      if (!reason) {
+        const contactReason = findContactConflict(l, seenContacts);
+        if (contactReason) {
+          reason = `Duplicate in upload payload: ${contactReason}`;
+        }
+      }
+
+      if (reason) {
+        duplicatesInPayloadWithReason.push({ lead: l, reason });
+        continue;
+      }
 
       if (l.orderNumber) {
-        // If order number is present, only check if this order number was already seen
-        if (seenOrderNumbers.has(l.orderNumber)) {
-          isPayloadDuplicate = true;
-        }
-      } else {
-        // If NO order number, fall back to Phone + Course check
-        const courseNames = getCourseNames(l);
-        for (const name of courseNames) {
-          const cleanCourse = name.toLowerCase();
-
-          if (l.phone) {
-            const phoneKey = `phone__${l.phone}__${cleanCourse}`;
-            if (seenPairs.has(phoneKey)) {
-              isPayloadDuplicate = true;
-              break;
-            }
-          }
-
-          if (l.fblink) {
-            const fbKey = `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`;
-            if (seenPairs.has(fbKey)) {
-              isPayloadDuplicate = true;
-              break;
-            }
-          }
-        }
+        seenOrderNumbers.add(l.orderNumber);
       }
 
-      if (isPayloadDuplicate) {
-        duplicatesInPayload.push(l);
-      } else {
-        // Track unique keys for future checks in the loop
-        if (l.orderNumber) {
-          seenOrderNumbers.add(l.orderNumber);
+      keys.forEach((k) => {
+        if (!seenContacts.has(k)) {
+          seenContacts.set(k, []);
         }
-
-        // Still register the phone/course pairs in case a subsequent lead has NO order number
-        const courseNames = getCourseNames(l);
-        for (const name of courseNames) {
-          const cleanCourse = name.toLowerCase();
-          if (l.phone) {
-            seenPairs.add(`phone__${l.phone}__${cleanCourse}`);
-          }
-          if (l.fblink) {
-            seenPairs.add(`fblink__${l.fblink.toLowerCase()}__${cleanCourse}`);
-          }
-        }
-        uniqueIncoming.push(l);
-      }
-    }
-
-    // Step 3️⃣ — Find which unique candidates ALREADY exist in DB
-    let existingPairs = new Set();
-    let existingOrderNumbers = new Set(); // Track existing order numbers in DB
-
-    if (uniqueIncoming.length > 0) {
-      const incomingOrderNumbers = [];
-      const dbConditions = [];
-
-      uniqueIncoming.forEach((l) => {
-        if (l.orderNumber) {
-          incomingOrderNumbers.push(l.orderNumber);
-        } else {
-          // Only fetch Phone + Course records for leads without an order number
-          const courseNames = getCourseNames(l);
-          const courseQuery = [
-            { "courses.courseName": { $in: courseNames } },
-            { interstedCourse: { $in: courseNames } },
-          ];
-
-          if (l.phone) {
-            dbConditions.push({ phone: l.phone, $or: courseQuery });
-          }
-          if (l.fblink) {
-            dbConditions.push({ fblink: l.fblink, $or: courseQuery });
-          }
-        }
+        seenContacts.get(k).push(courses);
       });
 
-      // Combined query
-      const mongoQuery = [];
-      if (incomingOrderNumbers.length > 0) {
-        mongoQuery.push({ orderNumber: { $in: incomingOrderNumbers } });
+      uniqueIncoming.push(l);
+    }
+
+    // Step 3 — Find which unique candidates ALREADY exist in DB
+    const existingContacts = new Map(); // contactKey -> array of course arrays
+    const existingOrderNumbers = new Set();
+
+    if (uniqueIncoming.length > 0) {
+      // Build the list of values to search in the DB (normalized + common stored formats + raw)
+      const phoneSearch = new Set();
+      const fbSearch = new Set();
+
+      leads.forEach((l, idx) => {
+        phoneVariants(rawPhones[idx], l.phone).forEach((v) => phoneSearch.add(v));
+        fbVariants(rawFbs[idx], l.fblink).forEach((v) => fbSearch.add(v));
+      });
+
+      const orders = [
+        ...new Set(uniqueIncoming.map((l) => l.orderNumber).filter(Boolean)),
+      ];
+
+      const orConditions = [];
+      if (phoneSearch.size > 0) {
+        orConditions.push({ phone: { $in: [...phoneSearch] } });
       }
-      if (dbConditions.length > 0) {
-        mongoQuery.push(...dbConditions);
+      if (fbSearch.size > 0) {
+        orConditions.push({ fblink: { $in: [...fbSearch] } });
+      }
+      if (orders.length > 0) {
+        orConditions.push({ orderNumber: { $in: orders } });
       }
 
-      if (mongoQuery.length > 0) {
+      if (orConditions.length > 0) {
         const existing = await lead
           .find(
-            { $or: mongoQuery },
+            { $or: orConditions },
             {
               phone: 1,
               fblink: 1,
@@ -151,65 +522,39 @@ export const createLead = async (req, res) => {
             existingOrderNumbers.add(Number(e.orderNumber));
           }
 
-          const addDbPairs = (courseName) => {
-            const cleanCourse = courseName.trim().toLowerCase();
-            if (e.phone) {
-              existingPairs.add(`phone__${e.phone}__${cleanCourse}`);
+          const courses = getCourseNames(e);
+          contactKeys(e).forEach((k) => {
+            if (!existingContacts.has(k)) {
+              existingContacts.set(k, []);
             }
-            if (e.fblink) {
-              existingPairs.add(
-                `fblink__${e.fblink.trim().toLowerCase()}__${cleanCourse}`,
-              );
-            }
-          };
-
-          if (e.interstedCourse) {
-            addDbPairs(e.interstedCourse);
-          }
-          if (Array.isArray(e.courses)) {
-            e.courses.forEach((c) => {
-              if (c.courseName) {
-                addDbPairs(c.courseName);
-              }
-            });
-          }
+            existingContacts.get(k).push(courses);
+          });
         });
       }
     }
 
-    // Step 4️⃣ — Separate New Leads from DB Duplicates
+    // Step 4 — Separate New Leads from DB Duplicates
     const newLeads = [];
 
     for (const l of uniqueIncoming) {
-      let isDuplicate = false;
+      let reason = null;
 
-      if (l.orderNumber) {
-        // If an order number is present, it's only a duplicate if that order number exists in the DB
-        isDuplicate = existingOrderNumbers.has(l.orderNumber);
-      } else {
-        // If NO order number is present, fall back to Phone + Course validation
-        const courseNames = getCourseNames(l);
-        isDuplicate = courseNames.some((name) => {
-          const cleanCourse = name.toLowerCase();
-          const hasPhoneMatch =
-            l.phone && existingPairs.has(`phone__${l.phone}__${cleanCourse}`);
-          const hasFbMatch =
-            l.fblink &&
-            existingPairs.has(
-              `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`,
-            );
-          return hasPhoneMatch || hasFbMatch;
-        });
+      // Counselling / contact check first (so the counselling message is shown)
+      const contactReason = findContactConflict(l, existingContacts);
+      if (contactReason) {
+        reason = contactReason;
+      } else if (l.orderNumber && existingOrderNumbers.has(l.orderNumber)) {
+        reason = `Order number (${l.orderNumber}) already exists in database`;
       }
 
-      if (isDuplicate) {
-        duplicatesInDB.push(l);
+      if (reason) {
+        duplicatesInDBWithReason.push({ lead: l, reason });
       } else {
         newLeads.push(l);
       }
     }
 
-    // Step 5️⃣ — Insert unique leads
+    // Step 5 — Insert unique leads
     let inserted = [];
     const failedInsertions = [];
 
@@ -249,17 +594,20 @@ export const createLead = async (req, res) => {
       }
     }
 
-    // Step 6️⃣ — Consolidate logs
+    // Step 6 — Consolidate logs
+    const duplicatesInPayload = duplicatesInPayloadWithReason.map((d) => d.lead);
+    const duplicatesInDB = duplicatesInDBWithReason.map((d) => d.lead);
+
     const notInsertedLeads = [
-      ...duplicatesInPayload.map((l) => ({
-        phone: l.phone || "N/A",
-        reason: "Duplicate in upload payload",
-        data: l,
+      ...duplicatesInPayloadWithReason.map((d) => ({
+        phone: d.lead.phone || "N/A",
+        reason: d.reason,
+        data: d.lead,
       })),
-      ...duplicatesInDB.map((l) => ({
-        phone: l.phone || "N/A",
-        reason: "Already exists in database (Phone+Course or Order Number)",
-        data: l,
+      ...duplicatesInDBWithReason.map((d) => ({
+        phone: d.lead.phone || "N/A",
+        reason: d.reason,
+        data: d.lead,
       })),
       ...failedInsertions,
     ];
@@ -279,7 +627,7 @@ export const createLead = async (req, res) => {
     });
   } catch (error) {
     console.error("createLead error:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 export const createLeadOld = async (req, res) => {
