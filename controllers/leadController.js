@@ -283,8 +283,6 @@ import { CallLog } from "../models/callLogs.js";
 //   }
 // };
 
-
-
 // ---------- Helpers (keep these directly above createLead) ----------
 
 // Strip spaces, dashes, +91 etc. and keep the last 10 digits
@@ -301,10 +299,14 @@ const normFb = (f) =>
     .replace(/\/+$/, "");
 
 // Is this course name a "counselling" course? (counselling / counseling / Counselling Session ...)
-const isCounsellingName = (name) => String(name || "").toLowerCase().includes("counsel");
+const isCounsellingName = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .includes("counsel");
 
 // Is this course name "not provided"?
-const isNotProvidedName = (name) => String(name || "").toLowerCase() === "not provided";
+const isNotProvidedName = (name) =>
+  String(name || "").toLowerCase() === "not provided";
 
 // Collect all course names of a lead (works for payload leads and DB leads)
 const getCourseNames = (l) => {
@@ -312,7 +314,9 @@ const getCourseNames = (l) => {
 
   if (Array.isArray(l.courses) && l.courses.length > 0) {
     names = l.courses
-      .map((c) => (c && c.courseName ? String(c.courseName).trim().toLowerCase() : ""))
+      .map((c) =>
+        c && c.courseName ? String(c.courseName).trim().toLowerCase() : "",
+      )
       .filter(Boolean);
   }
 
@@ -338,7 +342,14 @@ const contactKeys = (l) => {
 const phoneVariants = (raw, norm) => {
   const list = [];
   if (norm) {
-    list.push(norm, `0${norm}`, `91${norm}`, `+91${norm}`, `+91 ${norm}`, `+91-${norm}`);
+    list.push(
+      norm,
+      `0${norm}`,
+      `91${norm}`,
+      `+91${norm}`,
+      `+91 ${norm}`,
+      `+91-${norm}`,
+    );
   }
   if (raw) list.push(raw);
   return list;
@@ -484,7 +495,9 @@ export const createLead = async (req, res) => {
       const fbSearch = new Set();
 
       leads.forEach((l, idx) => {
-        phoneVariants(rawPhones[idx], l.phone).forEach((v) => phoneSearch.add(v));
+        phoneVariants(rawPhones[idx], l.phone).forEach((v) =>
+          phoneSearch.add(v),
+        );
         fbVariants(rawFbs[idx], l.fblink).forEach((v) => fbSearch.add(v));
       });
 
@@ -595,7 +608,9 @@ export const createLead = async (req, res) => {
     }
 
     // Step 6 — Consolidate logs
-    const duplicatesInPayload = duplicatesInPayloadWithReason.map((d) => d.lead);
+    const duplicatesInPayload = duplicatesInPayloadWithReason.map(
+      (d) => d.lead,
+    );
     const duplicatesInDB = duplicatesInDBWithReason.map((d) => d.lead);
 
     const notInsertedLeads = [
@@ -873,6 +888,28 @@ export const createSingleLead = async (req, res) => {
       return ["not provided"];
     };
 
+    const normalizePhone = (raw) => {
+      let d = String(raw || "")
+        .replace(/\D/g, "")
+        .replace(/^00/, "");
+      if (!d) return "";
+      const isBD =
+        d.startsWith("880") ||
+        (d.length === 11 && d.startsWith("01")) ||
+        (d.length === 10 && d.startsWith("1"));
+      if (isBD) return "880" + d.slice(-10);
+      return d.replace(/^0+/, "");
+    };
+
+    const phoneRegex = (norm) => {
+      if (!norm) return null;
+      const isBD = norm.startsWith("880") && norm.length === 13;
+      const core = isBD ? norm.slice(3) : norm;
+      const body = core.split("").join("\\D*"); // allow spaces/dashes between digits
+      const prefix = isBD ? "^\\D*(?:(?:00)?880\\D*)?0?\\D*" : "^[\\D0]*"; // optional + / 00
+      return new RegExp(prefix + body + "\\D*$");
+    };
+
     // Step 1️⃣ — Normalize payload
     const normalizedLead = {
       ...rawLead,
@@ -891,16 +928,32 @@ export const createSingleLead = async (req, res) => {
       // Check 2: Fallback to Phone/FB + Course match
       const courseNames = getCourseNames(normalizedLead);
 
-      const courseCondition = [
-        { "courses.courseName": { $in: courseNames } },
-        { interstedCourse: { $in: courseNames } },
-      ];
+      const isNewCounselling = courseNames.includes("Counselling");
+
+      const courseCondition = isNewCounselling
+        ? [{ _id: { $exists: true } }] // new lead is Counselling → match any existing course
+        : [
+            { "courses.courseName": { $in: courseNames } },
+            { interstedCourse: { $in: courseNames } },
+            // existing lead is Counselling → any new course is a duplicate
+            { "courses.courseName": "Counselling" },
+            { interstedCourse: "Counselling" },
+          ];
 
       const matchConditions = [];
 
-      if (normalizedLead.phone) {
+      // if (normalizedLead.phone) {
+      //   matchConditions.push({
+      //     phone: normalizedLead.phone,
+      //     $or: courseCondition,
+      //   });
+      // }
+
+      const phoneRx = phoneRegex(normalizePhone(normalizedLead.phone));
+
+      if (phoneRx) {
         matchConditions.push({
-          phone: normalizedLead.phone,
+          phone: phoneRx,
           $or: courseCondition,
         });
       }
@@ -922,14 +975,27 @@ export const createSingleLead = async (req, res) => {
       const existingLead = await lead.findOne(duplicateQuery).lean();
 
       if (existingLead) {
-        const reason = normalizedLead.orderNumber
-          ? `Lead with Order Number (${normalizedLead.orderNumber}) already exists.`
-          : `Lead with this Phone/Facebook Link and Course already exists.`;
+        const ownerEmail =
+          existingLead.assignTo && existingLead.assignTo !== "N/A"
+            ? existingLead.assignTo
+            : existingLead.createdBy; // not assigned yet → show creator
+
+        const userDetails = await user.findOne({ email: ownerEmail })
+          .select("name")
+          .lean();
+        const agentName = userDetails?.name || ownerEmail || "Unknown";
+
+        const leadId = existingLead.uniqueID || existingLead._id;
+
+        const message = normalizedLead.orderNumber
+          ? `Order number ${normalizedLead.orderNumber} already exists. This lead is already taken by ${agentName}. Lead ID: ${leadId}`
+          : `This lead is already taken by ${agentName}. Lead ID: ${leadId}`;
 
         return res.status(409).json({
           success: false,
-          error: "Duplicate Lead",
-          reason,
+          error: message,
+          agentName,
+          leadId,
           existingLead,
         });
       }
@@ -949,31 +1015,204 @@ export const createSingleLead = async (req, res) => {
   }
 };
 
+// export const updateSingleCreatedLead = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const result = await lead.findByIdAndUpdate(id, req.body, {
+//       new: true, // return updated document
+//       runValidators: true, // apply schema validation
+//     });
+
+//     if (!result) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Lead not found",
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: result,
+//     });
+//   } catch (error) {
+//     res.status(400).json({
+//       success: false,
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 export const updateSingleCreatedLead = async (req, res) => {
   try {
     const { id } = req.params;
+    const updates = { ...req.body };
 
-    const result = await lead.findByIdAndUpdate(id, req.body, {
-      new: true, // return updated document
-      runValidators: true, // apply schema validation
-    });
-
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: "Lead not found",
-      });
+    const leadDoc = await lead.findById(id).lean();
+    if (!leadDoc) {
+      return res.status(404).json({ success: false, message: "Lead not found" });
     }
 
-    res.status(200).json({
-      success: true,
-      data: result,
+    // ---------- helpers (same logic as createSingleLead) ----------
+    const getCourseNames = (l) => {
+      if (Array.isArray(l.courses) && l.courses.length > 0) {
+        return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
+      }
+      if (l.interstedCourse) return [l.interstedCourse.trim()];
+      return ["not provided"];
+    };
+
+    const normalizePhone = (raw) => {
+      let d = String(raw || "").replace(/\D/g, "").replace(/^00/, "");
+      if (!d) return "";
+      const isBD =
+        d.startsWith("880") ||
+        (d.length === 11 && d.startsWith("01")) ||
+        (d.length === 10 && d.startsWith("1"));
+      if (isBD) return "880" + d.slice(-10);
+      return d.replace(/^0+/, "");
+    };
+
+    const phoneRegex = (norm) => {
+      if (!norm) return null;
+      const isBD = norm.startsWith("880") && norm.length === 13;
+      const core = isBD ? norm.slice(3) : norm;
+      const body = core.split("").join("\\D*");
+      const prefix = isBD
+        ? "^\\D*(?:(?:00)?880\\D*)?0?\\D*"
+        : "^[\\D0]*";
+      return new RegExp(prefix + body + "\\D*$");
+    };
+
+    // ---------- DUPLICATE CHECK ----------
+    // Only runs if a field that affects duplicates is being changed
+    const duplicateFields = ["phone", "fblink", "courses", "orderNumber"];
+    const needsCheck = duplicateFields.some((f) => updates[f] !== undefined);
+
+    if (needsCheck) {
+      // Merge incoming values over the existing lead
+      const merged = {
+        phone: String(updates.phone ?? leadDoc.phone ?? "").trim(),
+        fblink: String(updates.fblink ?? leadDoc.fblink ?? "").trim(),
+        courses: updates.courses ?? leadDoc.courses,
+        interstedCourse: leadDoc.interstedCourse,
+        orderNumber:
+          updates.orderNumber !== undefined
+            ? updates.orderNumber
+              ? Number(updates.orderNumber)
+              : null
+            : leadDoc.orderNumber,
+      };
+
+      let duplicateQuery = null;
+
+      if (merged.orderNumber) {
+        duplicateQuery = { orderNumber: merged.orderNumber };
+      } else {
+        const courseNames = getCourseNames(merged);
+        const isNewCounselling = courseNames.includes("Counselling");
+
+        const courseCondition = isNewCounselling
+          ? [{ _id: { $exists: true } }]
+          : [
+              { "courses.courseName": { $in: courseNames } },
+              { interstedCourse: { $in: courseNames } },
+              { "courses.courseName": "Counselling" },
+              { interstedCourse: "Counselling" },
+            ];
+
+        const matchConditions = [];
+
+        const phoneRx = phoneRegex(normalizePhone(merged.phone));
+        if (phoneRx) {
+          matchConditions.push({ phone: phoneRx, $or: courseCondition });
+        }
+        if (merged.fblink) {
+          matchConditions.push({ fblink: merged.fblink, $or: courseCondition });
+        }
+
+        if (matchConditions.length > 0) {
+          duplicateQuery = { $or: matchConditions };
+        }
+      }
+
+      if (duplicateQuery) {
+        // exclude the lead being edited
+        const existingLead = await lead
+          .findOne({ $and: [{ _id: { $ne: id } }, duplicateQuery] })
+          .lean();
+
+        if (existingLead) {
+          const ownerEmail =
+            existingLead.assignTo && existingLead.assignTo !== "N/A"
+              ? existingLead.assignTo
+              : existingLead.createdBy;
+
+          const userDetails = await user.findOne({ email: ownerEmail })
+            .select("name")
+            .lean();
+          const agentName = userDetails?.name || ownerEmail || "Unknown";
+          const leadId = existingLead.uniqueID || existingLead._id;
+
+          const message = merged.orderNumber
+            ? `Order number ${merged.orderNumber} already exists. This lead is already taken by ${agentName}. Lead ID: ${leadId}`
+            : `This lead is already taken by ${agentName}. Lead ID: ${leadId}`;
+
+          return res.status(409).json({
+            success: false,
+            error: message,
+            message,
+            agentName,
+            leadId,
+          });
+        }
+      }
+    }
+
+    // ---------- CHANGE TRACKING NOTE ----------
+    const currentUser = updates.lastModifiedBy || "Unknown User";
+    const trackedFields = ["name", "phone", "fblink", "email", "address", "orderNumber"];
+    const parts = [];
+
+    for (const key of trackedFields) {
+      if (updates[key] === undefined) continue;
+      const oldVal = String(leadDoc[key] ?? "").trim();
+      const newVal = String(updates[key] ?? "").trim();
+      if (oldVal === newVal) continue;
+
+      if (!newVal) parts.push(`cleared ${key}`);
+      else if (!oldVal) parts.push(`set ${key} to "${newVal}"`);
+      else parts.push(`changed ${key} from "${oldVal}" to "${newVal}"`);
+    }
+
+    if (Array.isArray(updates.courses)) {
+      const oldNames = (leadDoc.courses || []).map((c) => c.courseName).filter(Boolean);
+      const newNames = updates.courses.map((c) => c.courseName).filter(Boolean);
+      const added = newNames.filter((n) => !oldNames.includes(n));
+      const removed = oldNames.filter((n) => !newNames.includes(n));
+      added.forEach((n) => parts.push(`added course "${n}"`));
+      removed.forEach((n) => parts.push(`removed course "${n}"`));
+    }
+
+    const updateOps = { $set: updates };
+    delete updates.note; // avoid overwriting existing notes
+
+    if (parts.length > 0) {
+      updateOps.$push = {
+        note: { text: `${parts.join(".\n\n")}.`, by: currentUser },
+      };
+    }
+
+    // ---------- SAVE ----------
+    const result = await lead.findByIdAndUpdate(id, updateOps, {
+      new: true,
+      runValidators: true,
     });
+
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(400).json({ success: false, error: error.message });
   }
 };
 
@@ -1025,8 +1264,6 @@ export const getAllLeads = async (req, res) => {
     } else {
       createdEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
-
-
 
     const assignStartDateFormat = new Date(assignStartDate);
     const assignEndDateFormat = new Date(assignEndDate);
@@ -1549,8 +1786,8 @@ export const getLeadsCount = async (req, res) => {
       limit,
       currentPage,
       createdBy,
-         createdDate,
-            createdStartDate,
+      createdDate,
+      createdStartDate,
       createdEndDate,
       assignTo,
       leadStatus,
@@ -1594,8 +1831,6 @@ export const getLeadsCount = async (req, res) => {
       paymentEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
 
-
-    
     const createdStartDateFormat = new Date(createdStartDate);
     const createdEndDateFormat = new Date(createdEndDate);
 
@@ -1605,7 +1840,6 @@ export const getLeadsCount = async (req, res) => {
     } else {
       createdEndDateFormat.setUTCHours(23, 59, 59, 999);
     }
-
 
     // 1. Status
     if (status && status !== "All") {
@@ -1710,7 +1944,7 @@ export const getLeadsCount = async (req, res) => {
       };
     }
 
-       if (createdDate === "DateRange" && createdStartDate && createdEndDate) {
+    if (createdDate === "DateRange" && createdStartDate && createdEndDate) {
       filter.createdAt = {
         $gte: createdStartDateFormat,
         $lte: createdEndDateFormat,
@@ -2124,7 +2358,6 @@ export const updateSingleLead = async (req, res) => {
     }
 
     const savedLead = await leadDoc.save();
-
 
     if (
       changedFields["lastContacted"] &&
