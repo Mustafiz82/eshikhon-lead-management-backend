@@ -9,7 +9,7 @@ const leadCourseSchema = new mongoose.Schema({
       "Offline",
       "Video Course",
       "Download Course",
-      "Free course",
+      "Free course",  
       "Both",
       "Not Specified",
     ],

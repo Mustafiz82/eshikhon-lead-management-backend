@@ -5,364 +5,88 @@ import user from "../models/user.js";
 import axios from "axios";
 import { CallLog } from "../models/callLogs.js";
 
-// export const createLead = async (req, res) => {
-//   try {
-//     let leads = Array.isArray(req.body) ? req.body : [req.body];
-
-//     // Helper to extract course names
-//     const getCourseNames = (l) => {
-//       if (Array.isArray(l.courses) && l.courses.length > 0) {
-//         return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
-//       }
-//       if (l.interstedCourse) {
-//         return [l.interstedCourse.trim()];
-//       }
-//       return ["not provided"];
-//     };
-
-//     // Step 1️⃣ — Normalize phone and orderNumber
-//     leads = leads.map((l) => ({
-//       ...l,
-//       phone: String(l.phone || "").trim(),
-//       fblink: String(l.fblink || "").trim(),
-//       orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
-//     }));
-
-//     if (leads.length === 0) {
-//       return res.status(400).json({ error: "No leads provided" });
-//     }
-
-//     const duplicatesInPayload = [];
-//     const duplicatesInDB = [];
-//     const uniqueIncoming = [];
-
-//     // Step 2️⃣ — Remove duplicates inside the SAME upload payload
-//     const seenPairs = new Set();
-//     const seenOrderNumbers = new Set(); // Track seen order numbers in payload
-
-//     for (const l of leads) {
-//       let isPayloadDuplicate = false;
-
-//       if (l.orderNumber) {
-//         // If order number is present, only check if this order number was already seen
-//         if (seenOrderNumbers.has(l.orderNumber)) {
-//           isPayloadDuplicate = true;
-//         }
-//       } else {
-//         // If NO order number, fall back to Phone + Course check
-//         const courseNames = getCourseNames(l);
-//         for (const name of courseNames) {
-//           const cleanCourse = name.toLowerCase();
-
-//           if (l.phone) {
-//             const phoneKey = `phone__${l.phone}__${cleanCourse}`;
-//             if (seenPairs.has(phoneKey)) {
-//               isPayloadDuplicate = true;
-//               break;
-//             }
-//           }
-
-//           if (l.fblink) {
-//             const fbKey = `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`;
-//             if (seenPairs.has(fbKey)) {
-//               isPayloadDuplicate = true;
-//               break;
-//             }
-//           }
-//         }
-//       }
-
-//       if (isPayloadDuplicate) {
-//         duplicatesInPayload.push(l);
-//       } else {
-//         // Track unique keys for future checks in the loop
-//         if (l.orderNumber) {
-//           seenOrderNumbers.add(l.orderNumber);
-//         }
-
-//         // Still register the phone/course pairs in case a subsequent lead has NO order number
-//         const courseNames = getCourseNames(l);
-//         for (const name of courseNames) {
-//           const cleanCourse = name.toLowerCase();
-//           if (l.phone) {
-//             seenPairs.add(`phone__${l.phone}__${cleanCourse}`);
-//           }
-//           if (l.fblink) {
-//             seenPairs.add(`fblink__${l.fblink.toLowerCase()}__${cleanCourse}`);
-//           }
-//         }
-//         uniqueIncoming.push(l);
-//       }
-//     }
-
-//     // Step 3️⃣ — Find which unique candidates ALREADY exist in DB
-//     let existingPairs = new Set();
-//     let existingOrderNumbers = new Set(); // Track existing order numbers in DB
-
-//     if (uniqueIncoming.length > 0) {
-//       const incomingOrderNumbers = [];
-//       const dbConditions = [];
-
-//       uniqueIncoming.forEach((l) => {
-//         if (l.orderNumber) {
-//           incomingOrderNumbers.push(l.orderNumber);
-//         } else {
-//           // Only fetch Phone + Course records for leads without an order number
-//           const courseNames = getCourseNames(l);
-//           const courseQuery = [
-//             { "courses.courseName": { $in: courseNames } },
-//             { interstedCourse: { $in: courseNames } },
-//           ];
-
-//           if (l.phone) {
-//             dbConditions.push({ phone: l.phone, $or: courseQuery });
-//           }
-//           if (l.fblink) {
-//             dbConditions.push({ fblink: l.fblink, $or: courseQuery });
-//           }
-//         }
-//       });
-
-//       // Combined query
-//       const mongoQuery = [];
-//       if (incomingOrderNumbers.length > 0) {
-//         mongoQuery.push({ orderNumber: { $in: incomingOrderNumbers } });
-//       }
-//       if (dbConditions.length > 0) {
-//         mongoQuery.push(...dbConditions);
-//       }
-
-//       if (mongoQuery.length > 0) {
-//         const existing = await lead
-//           .find(
-//             { $or: mongoQuery },
-//             {
-//               phone: 1,
-//               fblink: 1,
-//               interstedCourse: 1,
-//               courses: 1,
-//               orderNumber: 1,
-//             },
-//           )
-//           .lean();
-
-//         existing.forEach((e) => {
-//           if (e.orderNumber) {
-//             existingOrderNumbers.add(Number(e.orderNumber));
-//           }
-
-//           const addDbPairs = (courseName) => {
-//             const cleanCourse = courseName.trim().toLowerCase();
-//             if (e.phone) {
-//               existingPairs.add(`phone__${e.phone}__${cleanCourse}`);
-//             }
-//             if (e.fblink) {
-//               existingPairs.add(
-//                 `fblink__${e.fblink.trim().toLowerCase()}__${cleanCourse}`,
-//               );
-//             }
-//           };
-
-//           if (e.interstedCourse) {
-//             addDbPairs(e.interstedCourse);
-//           }
-//           if (Array.isArray(e.courses)) {
-//             e.courses.forEach((c) => {
-//               if (c.courseName) {
-//                 addDbPairs(c.courseName);
-//               }
-//             });
-//           }
-//         });
-//       }
-//     }
-
-//     // Step 4️⃣ — Separate New Leads from DB Duplicates
-//     const newLeads = [];
-
-//     for (const l of uniqueIncoming) {
-//       let isDuplicate = false;
-
-//       if (l.orderNumber) {
-//         // If an order number is present, it's only a duplicate if that order number exists in the DB
-//         isDuplicate = existingOrderNumbers.has(l.orderNumber);
-//       } else {
-//         // If NO order number is present, fall back to Phone + Course validation
-//         const courseNames = getCourseNames(l);
-//         isDuplicate = courseNames.some((name) => {
-//           const cleanCourse = name.toLowerCase();
-//           const hasPhoneMatch =
-//             l.phone && existingPairs.has(`phone__${l.phone}__${cleanCourse}`);
-//           const hasFbMatch =
-//             l.fblink &&
-//             existingPairs.has(
-//               `fblink__${l.fblink.toLowerCase()}__${cleanCourse}`,
-//             );
-//           return hasPhoneMatch || hasFbMatch;
-//         });
-//       }
-
-//       if (isDuplicate) {
-//         duplicatesInDB.push(l);
-//       } else {
-//         newLeads.push(l);
-//       }
-//     }
-
-//     // Step 5️⃣ — Insert unique leads
-//     let inserted = [];
-//     const failedInsertions = [];
-
-//     if (newLeads.length > 0) {
-//       try {
-//         inserted = await lead.insertMany(newLeads, { ordered: false });
-//       } catch (insertError) {
-//         if (insertError.insertedDocs) {
-//           inserted = insertError.insertedDocs;
-//         }
-
-//         if (insertError.writeErrors && Array.isArray(insertError.writeErrors)) {
-//           insertError.writeErrors.forEach((we) => {
-//             const failedLead = newLeads[we.index];
-//             if (failedLead) {
-//               failedInsertions.push({
-//                 phone: failedLead.phone || "N/A",
-//                 reason: `DB Error: ${we.errmsg || insertError.message}`,
-//                 data: failedLead,
-//               });
-//             }
-//           });
-//         } else {
-//           const insertedPhoneSet = new Set(
-//             inserted.map((i) => String(i.phone)),
-//           );
-//           newLeads.forEach((l) => {
-//             if (!insertedPhoneSet.has(String(l.phone))) {
-//               failedInsertions.push({
-//                 phone: l.phone || "N/A",
-//                 reason: insertError.message || "Insertion failed",
-//                 data: l,
-//               });
-//             }
-//           });
-//         }
-//       }
-//     }
-
-//     // Step 6️⃣ — Consolidate logs
-//     const notInsertedLeads = [
-//       ...duplicatesInPayload.map((l) => ({
-//         phone: l.phone || "N/A",
-//         reason: "Duplicate in upload payload",
-//         data: l,
-//       })),
-//       ...duplicatesInDB.map((l) => ({
-//         phone: l.phone || "N/A",
-//         reason: "Already exists in database (Phone+Course or Order Number)",
-//         data: l,
-//       })),
-//       ...failedInsertions,
-//     ];
-
-//     const totalSkipped = notInsertedLeads.length;
-
-//     return res.status(201).json({
-//       ok: inserted.length > 0,
-//       message: `${inserted.length} new leads added, ${totalSkipped} skipped/failed.`,
-//       insertedCount: inserted.length,
-//       skippedCount: totalSkipped,
-//       notInsertedLeads,
-//       insertedLeads: inserted,
-//       duplicatesInPayload,
-//       duplicatesInDB,
-//       failedInsertions,
-//     });
-//   } catch (error) {
-//     console.error("createLead error:", error);
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
 // ---------- Helpers (keep these directly above createLead) ----------
-
-// Strip spaces, dashes, +91 etc. and keep the last 10 digits
-const normPhone = (p) =>
-  String(p || "")
-    .replace(/\D/g, "")
-    .slice(-10);
-
-// Lowercase, trim and remove trailing slashes
-const normFb = (f) =>
-  String(f || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\/+$/, "");
-
-// Is this course name a "counselling" course? (counselling / counseling / Counselling Session ...)
-const isCounsellingName = (name) =>
-  String(name || "")
-    .toLowerCase()
-    .includes("counsel");
-
-// Is this course name "not provided"?
-const isNotProvidedName = (name) =>
-  String(name || "").toLowerCase() === "not provided";
-
-// Collect all course names of a lead (works for payload leads and DB leads)
 const getCourseNames = (l) => {
-  let names = [];
-
   if (Array.isArray(l.courses) && l.courses.length > 0) {
-    names = l.courses
-      .map((c) =>
-        c && c.courseName ? String(c.courseName).trim().toLowerCase() : "",
-      )
-      .filter(Boolean);
+    return l.courses.map((c) => c.courseName?.trim()).filter(Boolean);
   }
-
   if (l.interstedCourse) {
-    const single = String(l.interstedCourse).trim().toLowerCase();
-    if (single) names.push(single);
+    return [l.interstedCourse.trim()];
   }
-
-  return names.length > 0 ? [...new Set(names)] : ["not provided"];
+  return ["not provided"];
 };
 
-// Identity keys of a lead (phone and/or facebook link)
+const getDbStoredCourses = (doc) => {
+  const names = [];
+  if (Array.isArray(doc.courses)) {
+    doc.courses.forEach((c) => {
+      const name = c?.courseName?.trim();
+      if (name) names.push(name);
+    });
+  }
+  if (doc.interstedCourse) {
+    const name = String(doc.interstedCourse).trim();
+    if (name) names.push(name);
+  }
+  return names;
+};
+
+const normalizePhone = (raw) => {
+  let d = String(raw || "")
+    .replace(/\D/g, "")
+    .replace(/^00/, "");
+  if (!d) return "";
+  const isBD =
+    d.startsWith("880") ||
+    (d.length === 11 && d.startsWith("01")) ||
+    (d.length === 10 && d.startsWith("1"));
+  if (isBD) return "880" + d.slice(-10);
+  return d.replace(/^0+/, "");
+};
+
+const phoneRegex = (norm) => {
+  if (!norm) return null;
+  const isBD = norm.startsWith("880") && norm.length === 13;
+  const core = isBD ? norm.slice(3) : norm;
+  const body = core.split("").join("\\D*");
+  const prefix = isBD ? "^\\D*(?:(?:00)?880\\D*)?0?\\D*" : "^[\\D0]*";
+  return new RegExp(prefix + body + "\\D*$");
+};
+
 const contactKeys = (l) => {
   const keys = [];
-  const phone = normPhone(l.phone);
-  const fb = normFb(l.fblink);
+  const phone = normalizePhone(l.phone);
+  const fb = String(l.fblink || "").trim();
   if (phone) keys.push(`phone__${phone}`);
   if (fb) keys.push(`fb__${fb}`);
   return keys;
 };
 
-// Different ways a phone number may be stored in the DB
-const phoneVariants = (raw, norm) => {
-  const list = [];
-  if (norm) {
-    list.push(
-      norm,
-      `0${norm}`,
-      `91${norm}`,
-      `+91${norm}`,
-      `+91 ${norm}`,
-      `+91-${norm}`,
-    );
+const findContactConflict = (l, contactMap) => {
+  const incomingCourses = getCourseNames(l);
+  const isNewCounselling = incomingCourses.includes("Counselling");
+  const keys = contactKeys(l);
+
+  for (const k of keys) {
+    const list = contactMap.get(k) || [];
+    for (const existingCourses of list) {
+      if (isNewCounselling) {
+        return "This contact already exists, so a Counselling lead will be duplicated";
+      }
+      if (existingCourses.includes("Counselling")) {
+        return "This lead has course set to Counselling, so this lead will be duplicated";
+      }
+      const overlap = incomingCourses.filter((c) =>
+        existingCourses.includes(c),
+      );
+      if (overlap.length > 0) {
+        return `This contact already exists with the same course (${overlap.join(", ")})`;
+      }
+    }
   }
-  if (raw) list.push(raw);
-  return list;
-};
 
-// Different ways a facebook link may be stored in the DB
-const fbVariants = (raw, norm) => {
-  const list = [];
-  if (norm) list.push(norm, `${norm}/`);
-  if (raw) list.push(raw);
-  return list;
+  return null;
 };
-
 // Compare incoming course list against ONE existing course list.
 // Returns a reason string if it is a duplicate, otherwise null.
 const getConflictReason = (incomingCourses, existingCourses) => {
@@ -396,28 +120,28 @@ const getConflictReason = (incomingCourses, existingCourses) => {
 };
 
 // Check an incoming lead against a Map(contactKey -> array of course arrays)
-const findContactConflict = (l, contactMap) => {
-  const incomingCourses = getCourseNames(l);
-  const keys = contactKeys(l);
+// const findContactConflict = (l, contactMap) => {
+//   const incomingCourses = getCourseNames(l);
+//   const keys = contactKeys(l);
 
-  // Counselling reason has the highest priority, so check all matches and prefer it
-  let firstReason = null;
+//   // Counselling reason has the highest priority, so check all matches and prefer it
+//   let firstReason = null;
 
-  for (const k of keys) {
-    const list = contactMap.get(k) || [];
-    for (const existingCourses of list) {
-      const reason = getConflictReason(incomingCourses, existingCourses);
-      if (reason) {
-        if (existingCourses.some(isCounsellingName)) {
-          return reason;
-        }
-        if (!firstReason) firstReason = reason;
-      }
-    }
-  }
+//   for (const k of keys) {
+//     const list = contactMap.get(k) || [];
+//     for (const existingCourses of list) {
+//       const reason = getConflictReason(incomingCourses, existingCourses);
+//       if (reason) {
+//         if (existingCourses.some(isCounsellingName)) {
+//           return reason;
+//         }
+//         if (!firstReason) firstReason = reason;
+//       }
+//     }
+//   }
 
-  return firstReason;
-};
+//   return firstReason;
+// };
 
 // ---------- Controller ----------
 
@@ -436,8 +160,8 @@ export const createLead = async (req, res) => {
     // Step 1 — Normalize phone, fblink and orderNumber
     leads = leads.map((l) => ({
       ...l,
-      phone: normPhone(l.phone),
-      fblink: normFb(l.fblink),
+      phone: String(l.phone || "").trim(),
+      fblink: String(l.fblink || "").trim(),
       orderNumber: l.orderNumber ? Number(l.orderNumber) : null,
     }));
 
@@ -455,16 +179,23 @@ export const createLead = async (req, res) => {
 
       let reason = null;
 
-      if (l.orderNumber && seenOrderNumbers.has(l.orderNumber)) {
-        reason = `Duplicate order number (${l.orderNumber}) in upload payload`;
-      }
-
-      if (!reason) {
+      if (l.orderNumber) {
+        if (seenOrderNumbers.has(l.orderNumber)) {
+          reason = `Duplicate order number (${l.orderNumber}) in upload payload`;
+        }
+      } else {
         const contactReason = findContactConflict(l, seenContacts);
         if (contactReason) {
           reason = `Duplicate in upload payload: ${contactReason}`;
         }
       }
+
+      // if (!reason) {
+      //   const contactReason = findContactConflict(l, seenContacts);
+      //   if (contactReason) {
+      //     reason = `Duplicate in upload payload: ${contactReason}`;
+      //   }
+      // }
 
       if (reason) {
         duplicatesInPayloadWithReason.push({ lead: l, reason });
@@ -489,53 +220,127 @@ export const createLead = async (req, res) => {
     const existingContacts = new Map(); // contactKey -> array of course arrays
     const existingOrderNumbers = new Set();
 
+    // if (uniqueIncoming.length > 0) {
+    //   // Build the list of values to search in the DB (normalized + common stored formats + raw)
+    //   const phoneSearch = new Set();
+    //   const fbSearch = new Set();
+
+    //   leads.forEach((l, idx) => {
+    //     phoneVariants(rawPhones[idx], l.phone).forEach((v) =>
+    //       phoneSearch.add(v),
+    //     );
+    //     fbVariants(rawFbs[idx], l.fblink).forEach((v) => fbSearch.add(v));
+    //   });
+
+    //   const orders = [
+    //     ...new Set(uniqueIncoming.map((l) => l.orderNumber).filter(Boolean)),
+    //   ];
+
+    //   const orConditions = [];
+    //   if (phoneSearch.size > 0) {
+    //     orConditions.push({ phone: { $in: [...phoneSearch] } });
+    //   }
+    //   if (fbSearch.size > 0) {
+    //     orConditions.push({ fblink: { $in: [...fbSearch] } });
+    //   }
+    //   if (orders.length > 0) {
+    //     orConditions.push({ orderNumber: { $in: orders } });
+    //   }
+
+    //   if (orConditions.length > 0) {
+    //     const existing = await lead
+    //       .find(
+    //         { $or: orConditions },
+    //         {
+    //           phone: 1,
+    //           fblink: 1,
+    //           interstedCourse: 1,
+    //           courses: 1,
+    //           orderNumber: 1,
+    //         },
+    //       )
+    //       .lean();
+
+    //     existing.forEach((e) => {
+    //       if (e.orderNumber) {
+    //         existingOrderNumbers.add(Number(e.orderNumber));
+    //       }
+
+    //       const courses = getCourseNames(e);
+    //       contactKeys(e).forEach((k) => {
+    //         if (!existingContacts.has(k)) {
+    //           existingContacts.set(k, []);
+    //         }
+    //         existingContacts.get(k).push(courses);
+    //       });
+    //     });
+    //   }
+    // }
+
+    // Step 4 — Separate New Leads from DB Duplicates
+
     if (uniqueIncoming.length > 0) {
-      // Build the list of values to search in the DB (normalized + common stored formats + raw)
-      const phoneSearch = new Set();
-      const fbSearch = new Set();
-
-      leads.forEach((l, idx) => {
-        phoneVariants(rawPhones[idx], l.phone).forEach((v) =>
-          phoneSearch.add(v),
-        );
-        fbVariants(rawFbs[idx], l.fblink).forEach((v) => fbSearch.add(v));
-      });
-
       const orders = [
         ...new Set(uniqueIncoming.map((l) => l.orderNumber).filter(Boolean)),
       ];
 
-      const orConditions = [];
-      if (phoneSearch.size > 0) {
-        orConditions.push({ phone: { $in: [...phoneSearch] } });
-      }
-      if (fbSearch.size > 0) {
-        orConditions.push({ fblink: { $in: [...fbSearch] } });
-      }
+      const phoneRegexMap = new Map();
+      const fbSet = new Set();
+
+      uniqueIncoming.forEach((l) => {
+        if (l.orderNumber) return; // orderNumber leads don't check phone/fb
+        const normP = normalizePhone(l.phone);
+        const rx = phoneRegex(normP);
+        if (rx && !phoneRegexMap.has(normP)) {
+          phoneRegexMap.set(normP, rx);
+        }
+        if (l.fblink) fbSet.add(l.fblink);
+      });
+
+      const projection = {
+        phone: 1,
+        fblink: 1,
+        interstedCourse: 1,
+        courses: 1,
+        orderNumber: 1,
+      };
+
+      const queries = [];
       if (orders.length > 0) {
-        orConditions.push({ orderNumber: { $in: orders } });
+        queries.push(
+          lead.find({ orderNumber: { $in: orders } }, projection).lean(),
+        );
+      }
+      if (fbSet.size > 0) {
+        queries.push(
+          lead.find({ fblink: { $in: [...fbSet] } }, projection).lean(),
+        );
       }
 
-      if (orConditions.length > 0) {
-        const existing = await lead
-          .find(
-            { $or: orConditions },
-            {
-              phone: 1,
-              fblink: 1,
-              interstedCourse: 1,
-              courses: 1,
-              orderNumber: 1,
-            },
-          )
-          .lean();
+      const phoneConditions = [...phoneRegexMap.values()].map((rx) => ({
+        phone: rx,
+      }));
+      for (let i = 0; i < phoneConditions.length; i += 200) {
+        queries.push(
+          lead
+            .find({ $or: phoneConditions.slice(i, i + 200) }, projection)
+            .lean(),
+        );
+      }
 
-        existing.forEach((e) => {
+      if (queries.length > 0) {
+        const results = await Promise.all(queries);
+        const seenIds = new Set();
+
+        results.flat().forEach((e) => {
+          if (seenIds.has(String(e._id))) return;
+          seenIds.add(String(e._id));
+
           if (e.orderNumber) {
             existingOrderNumbers.add(Number(e.orderNumber));
           }
 
-          const courses = getCourseNames(e);
+          const courses = getDbStoredCourses(e);
           contactKeys(e).forEach((k) => {
             if (!existingContacts.has(k)) {
               existingContacts.set(k, []);
@@ -546,18 +351,34 @@ export const createLead = async (req, res) => {
       }
     }
 
-    // Step 4 — Separate New Leads from DB Duplicates
     const newLeads = [];
 
+    // for (const l of uniqueIncoming) {
+    //   let reason = null;
+
+    //   // Counselling / contact check first (so the counselling message is shown)
+    //   const contactReason = findContactConflict(l, existingContacts);
+    //   if (contactReason) {
+    //     reason = contactReason;
+    //   } else if (l.orderNumber && existingOrderNumbers.has(l.orderNumber)) {
+    //     reason = `Order number (${l.orderNumber}) already exists in database`;
+    //   }
+
+    //   if (reason) {
+    //     duplicatesInDBWithReason.push({ lead: l, reason });
+    //   } else {
+    //     newLeads.push(l);
+    //   }
+    // }
     for (const l of uniqueIncoming) {
       let reason = null;
 
-      // Counselling / contact check first (so the counselling message is shown)
-      const contactReason = findContactConflict(l, existingContacts);
-      if (contactReason) {
-        reason = contactReason;
-      } else if (l.orderNumber && existingOrderNumbers.has(l.orderNumber)) {
-        reason = `Order number (${l.orderNumber}) already exists in database`;
+      if (l.orderNumber) {
+        if (existingOrderNumbers.has(l.orderNumber)) {
+          reason = `Order number (${l.orderNumber}) already exists in database`;
+        }
+      } else {
+        reason = findContactConflict(l, existingContacts);
       }
 
       if (reason) {
@@ -566,7 +387,6 @@ export const createLead = async (req, res) => {
         newLeads.push(l);
       }
     }
-
     // Step 5 — Insert unique leads
     let inserted = [];
     const failedInsertions = [];
@@ -980,7 +800,8 @@ export const createSingleLead = async (req, res) => {
             ? existingLead.assignTo
             : existingLead.createdBy; // not assigned yet → show creator
 
-        const userDetails = await user.findOne({ email: ownerEmail })
+        const userDetails = await user
+          .findOne({ email: ownerEmail })
           .select("name")
           .lean();
         const agentName = userDetails?.name || ownerEmail || "Unknown";
@@ -1015,6 +836,417 @@ export const createSingleLead = async (req, res) => {
   }
 };
 
+
+// ---------- Similarity Helpers ----------
+
+// Strip BD "880" prefix so missing/extra digits on "01..." numbers
+// still compare at true edit distance (e.g. "0171234567" vs "01712345678" = distance 1)
+const toComparableDigits = (raw) => {
+  const norm = normalizePhone(raw);
+  if (!norm) return "";
+  if (norm.startsWith("880") && norm.length === 13) {
+    return norm.slice(3); // 10-digit BD core: 1XXXXXXXXX
+  }
+  const digits = String(raw || "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+  if (digits.startsWith("880") && digits.length >= 11) {
+    return digits.slice(3);
+  }
+  return digits || norm;
+};
+
+// Optimal String Alignment (Damerau-Levenshtein: treats swapped adjacent digits as distance 1)
+const damerauLevenshtein = (a, b) => {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+      if (
+        i > 1 &&
+        j > 1 &&
+        a[i - 1] === b[j - 2] &&
+        a[i - 2] === b[j - 1]
+      ) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return dp[m][n];
+};
+
+// Build selective MongoDB regexes so we don't scan the whole DB for typos
+const buildPhoneCandidateConditions = (rawPhone) => {
+  const norm = normalizePhone(rawPhone);
+  const comp = toComparableDigits(rawPhone);
+  if (!comp || comp.length < 7) return [];
+
+  const conditions = [];
+  const exactRx = phoneRegex(norm);
+  if (exactRx) conditions.push({ phone: exactRx });
+
+  // Partial prefix match while agent is still typing (7-9 digits)
+  if (comp.length >= 7 && comp.length < 10) {
+    const body = comp.split("").join("\\D*");
+    conditions.push({
+      phone: new RegExp(`^[\\D0]*(?:880\\D*0?\\D*)?${body}`),
+    });
+  }
+
+  // Selective 4-digit chunk regexes across the tail for distance <= 2 typos
+  if (comp.length >= 9) {
+    const sub = comp.length >= 10 ? comp.slice(-8) : comp.slice(-7);
+    const chunks = new Set();
+
+    if (sub.length >= 4) {
+      chunks.add(sub.slice(0, 4));
+      chunks.add(sub.slice(-4));
+    }
+    if (sub.length >= 6) {
+      chunks.add(sub.slice(2, 6));
+    }
+
+    chunks.forEach((chunk) => {
+      conditions.push({
+        phone: new RegExp(chunk.split("").join("\\D*")),
+      });
+    });
+
+    // Handles split typos or swaps right across the middle boundary
+    if (sub.length === 8) {
+      const head2 = sub.slice(0, 2).split("").join("\\D*");
+      const tail2 = sub.slice(-2).split("").join("\\D*");
+      conditions.push({
+        phone: new RegExp(`${head2}(?:\\D*\\d){3,5}\\D*${tail2}\\D*$`),
+      });
+      conditions.push({
+        phone: new RegExp(
+          `${sub[0]}\\D*${sub[1]}(?:\\D*\\d){1,3}\\D*${sub[4]}\\D*${sub[5]}`,
+        ),
+      });
+    }
+  }
+
+  return conditions;
+};
+
+const evaluateCourseRelation = (hasCourseInput, incomingCourses, existingCourses) => {
+  const overlap = incomingCourses.filter((c) => existingCourses.includes(c));
+  const incomingCounselling = incomingCourses.includes("Counselling");
+  const existingCounselling = existingCourses.includes("Counselling");
+
+  if (!hasCourseInput) {
+    if (existingCounselling) {
+      return {
+        courseStatus: "COUNSELLING_CONFLICT",
+        isCourseConflict: true,
+        matchedCourses: existingCourses,
+      };
+    }
+    return {
+      courseStatus: "NO_COURSE_SELECTED_YET",
+      isCourseConflict: false,
+      matchedCourses: [],
+    };
+  }
+
+  if (incomingCounselling || existingCounselling) {
+    return {
+      courseStatus: "COUNSELLING_CONFLICT",
+      isCourseConflict: true,
+      matchedCourses: overlap.length > 0 ? overlap : existingCourses,
+    };
+  }
+
+  if (overlap.length > 0) {
+    return {
+      courseStatus: "EXACT_COURSE_MATCH",
+      isCourseConflict: true,
+      matchedCourses: overlap,
+    };
+  }
+
+  return {
+    courseStatus: "DIFFERENT_COURSE",
+    isCourseConflict: false,
+    matchedCourses: [],
+  };
+};
+
+// ---------- Similarity Check API ----------
+
+export const checkLeadSimilarity = async (req, res) => {
+  try {
+    const {
+      phone = "",
+      fblink = "",
+      orderNumber = null,
+      courses = [],
+      interstedCourse = "",
+      excludeLeadId = null, // optional: useful on Edit Lead forms
+    } = req.body || {};
+
+    const cleanPhone = String(phone || "").trim();
+    const cleanFb = String(fblink || "").trim();
+    const parsedOrder =
+      orderNumber !== undefined &&
+      orderNumber !== null &&
+      String(orderNumber).trim() !== ""
+        ? Number(orderNumber)
+        : null;
+    const cleanOrder =
+      Number.isFinite(parsedOrder) && parsedOrder !== 0 ? parsedOrder : null;
+
+    const hasCourseInput =
+      (Array.isArray(courses) &&
+        courses.some((c) => Boolean(c?.courseName?.trim()))) ||
+      Boolean(String(interstedCourse || "").trim());
+
+    const incomingCourses = getCourseNames({ courses, interstedCourse });
+    const inputNormPhone = normalizePhone(cleanPhone);
+    const inputCompPhone = toComparableDigits(cleanPhone);
+
+    // Build MongoDB query
+    const orConditions = [];
+    if (cleanOrder) {
+      orConditions.push({ orderNumber: cleanOrder });
+    }
+    if (cleanFb) {
+      orConditions.push({ fblink: cleanFb });
+    }
+    if (inputCompPhone.length >= 7) {
+      orConditions.push(...buildPhoneCandidateConditions(cleanPhone));
+    }
+
+    if (orConditions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        hasMatches: false,
+        hasBlockingDuplicate: false,
+        matches: [],
+      });
+    }
+
+    const query = { $or: orConditions };
+    if (excludeLeadId) {
+      query._id = { $ne: excludeLeadId };
+    }
+
+    const candidates = await lead.find(query).limit(50).lean();
+
+    const matchedResults = [];
+
+    for (const doc of candidates) {
+      const orderMatched = Boolean(
+        cleanOrder && Number(doc.orderNumber) === cleanOrder,
+      );
+      const fbMatched = Boolean(
+        cleanFb && String(doc.fblink || "").trim() === cleanFb,
+      );
+
+      const docNormPhone = normalizePhone(doc.phone);
+      const docCompPhone = toComparableDigits(doc.phone);
+
+      let phoneMatchType = "NONE"; // EXACT | SIMILAR | PARTIAL_PREFIX | NONE
+      let editDistance = null;
+      let similarityScore = 0;
+
+      if (inputCompPhone.length >= 7 && docCompPhone) {
+        if (inputNormPhone && docNormPhone && inputNormPhone === docNormPhone) {
+          phoneMatchType = "EXACT";
+          editDistance = 0;
+          similarityScore = 100;
+        } else if (
+          inputCompPhone.length < 10 &&
+          docCompPhone.startsWith(inputCompPhone)
+        ) {
+          phoneMatchType = "PARTIAL_PREFIX";
+          editDistance = docCompPhone.length - inputCompPhone.length;
+          similarityScore = Math.round(
+            (inputCompPhone.length / docCompPhone.length) * 100,
+          );
+        } else if (inputCompPhone.length >= 9) {
+          const dist = damerauLevenshtein(inputCompPhone, docCompPhone);
+          const maxAllowedDist = inputCompPhone.length >= 10 ? 2 : 1;
+
+          if (dist <= maxAllowedDist) {
+            phoneMatchType = "SIMILAR";
+            editDistance = dist;
+            const maxLen = Math.max(inputCompPhone.length, docCompPhone.length);
+            similarityScore = Math.max(
+              0,
+              Math.round(((maxLen - dist) / maxLen) * 100),
+            );
+          }
+        }
+      }
+
+      // Discard false-positive regex candidates
+      if (!orderMatched && !fbMatched && phoneMatchType === "NONE") {
+        continue;
+      }
+
+      const existingCourses = getDbStoredCourses(doc);
+      const courseEval = evaluateCourseRelation(
+        hasCourseInput,
+        incomingCourses,
+        existingCourses,
+      );
+
+      let matchType = "";
+      let severity = "info"; // "error" (blocked) | "warning" | "info"
+      let willBlockOnSubmit = false;
+      let warningMessage = "";
+
+      if (orderMatched) {
+        matchType = "EXACT_ORDER_DUPLICATE";
+        severity = "error";
+        willBlockOnSubmit = true;
+        warningMessage = `Order number ${cleanOrder} already exists.`;
+      } else if (phoneMatchType === "EXACT" || fbMatched) {
+        const via = phoneMatchType === "EXACT" ? "Phone number" : "Facebook link";
+        if (courseEval.isCourseConflict) {
+          matchType = "EXACT_DUPLICATE";
+          severity = "error";
+          willBlockOnSubmit = true;
+          warningMessage = `${via} and course match an existing lead (${
+            courseEval.matchedCourses.join(", ") || "Counselling"
+          }). Submitting will be blocked as a duplicate.`;
+        } else {
+          matchType = "SAME_NUMBER_DIFFERENT_COURSE";
+          severity = "warning";
+          willBlockOnSubmit = false;
+          warningMessage =
+            courseEval.courseStatus === "NO_COURSE_SELECTED_YET"
+              ? `${via} already exists in the database (Course: ${
+                  existingCourses.join(", ") || "Not provided"
+                }).`
+              : `${via} matches completely, but for a different course (${
+                  existingCourses.join(", ") || "Not provided"
+                }).`;
+        }
+      } else {
+        // SIMILAR or PARTIAL_PREFIX phone match
+        if (courseEval.isCourseConflict) {
+          matchType = "SIMILAR_NUMBER_SAME_COURSE";
+          severity = "warning";
+          willBlockOnSubmit = false;
+          warningMessage =
+            phoneMatchType === "PARTIAL_PREFIX"
+              ? `Number starts like an existing lead (${doc.phone}) with the same course (${
+                  courseEval.matchedCourses.join(", ") || "Counselling"
+                }).`
+              : `Very similar phone number (${doc.phone}, ${similarityScore}% match) with the same course (${
+                  courseEval.matchedCourses.join(", ") || "Counselling"
+                }). Check for a typo!`;
+        } else {
+          matchType = "SIMILAR_NUMBER_DIFFERENT_COURSE";
+          severity = "info";
+          willBlockOnSubmit = false;
+          warningMessage =
+            phoneMatchType === "PARTIAL_PREFIX"
+              ? `Number starts like an existing lead (${doc.phone}) for another course (${
+                  existingCourses.join(", ") || "Not provided"
+                }).`
+              : `Similar phone number (${doc.phone}, ${similarityScore}% match) exists for another course (${
+                  existingCourses.join(", ") || "Not provided"
+                }).`;
+        }
+      }
+
+      matchedResults.push({
+        matchType,
+        severity,
+        willBlockOnSubmit,
+        warningMessage,
+        phoneMatchType,
+        fbMatched,
+        orderMatched,
+        editDistance,
+        similarityScore,
+        courseStatus: courseEval.courseStatus,
+        matchedCourses: courseEval.matchedCourses,
+        existingCourses,
+        lead: doc,
+      });
+    }
+
+    // Batch-fetch agent names for all matched leads in 1 query
+    const ownerEmails = [
+      ...new Set(
+        matchedResults
+          .map(({ lead: doc }) =>
+            doc.assignTo && doc.assignTo !== "N/A"
+              ? doc.assignTo
+              : doc.createdBy,
+          )
+          .filter(Boolean),
+      ),
+    ];
+
+    const ownerUsers =
+      ownerEmails.length > 0
+        ? await user
+            .find({ email: { $in: ownerEmails } })
+            .select("name email")
+            .lean()
+        : [];
+    const userMap = new Map(ownerUsers.map((u) => [u.email, u.name]));
+
+    const enrichedMatches = matchedResults.map((item) => {
+      const doc = item.lead;
+      const ownerEmail =
+        doc.assignTo && doc.assignTo !== "N/A" ? doc.assignTo : doc.createdBy;
+
+      return {
+        ...item,
+        leadId: doc.uniqueID || doc._id,
+        ownerEmail: ownerEmail || null,
+        agentName: userMap.get(ownerEmail) || ownerEmail || "Unknown",
+      };
+    });
+
+    // Sort highest risk / closest match first
+    const priority = {
+      EXACT_ORDER_DUPLICATE: 1,
+      EXACT_DUPLICATE: 2,
+      SAME_NUMBER_DIFFERENT_COURSE: 3,
+      SIMILAR_NUMBER_SAME_COURSE: 4,
+      SIMILAR_NUMBER_DIFFERENT_COURSE: 5,
+    };
+
+    enrichedMatches.sort((a, b) => {
+      const pDiff = (priority[a.matchType] || 99) - (priority[b.matchType] || 99);
+      if (pDiff !== 0) return pDiff;
+      return b.similarityScore - a.similarityScore;
+    });
+
+    return res.status(200).json({
+      success: true,
+      hasMatches: enrichedMatches.length > 0,
+      hasBlockingDuplicate: enrichedMatches.some((m) => m.willBlockOnSubmit),
+      totalMatches: enrichedMatches.length,
+      matches: enrichedMatches,
+    });
+  } catch (error) {
+    console.error("checkLeadSimilarity error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 // export const updateSingleCreatedLead = async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -1043,7 +1275,6 @@ export const createSingleLead = async (req, res) => {
 //   }
 // };
 
-
 export const updateSingleCreatedLead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1051,7 +1282,9 @@ export const updateSingleCreatedLead = async (req, res) => {
 
     const leadDoc = await lead.findById(id).lean();
     if (!leadDoc) {
-      return res.status(404).json({ success: false, message: "Lead not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Lead not found" });
     }
 
     // ---------- helpers (same logic as createSingleLead) ----------
@@ -1064,7 +1297,9 @@ export const updateSingleCreatedLead = async (req, res) => {
     };
 
     const normalizePhone = (raw) => {
-      let d = String(raw || "").replace(/\D/g, "").replace(/^00/, "");
+      let d = String(raw || "")
+        .replace(/\D/g, "")
+        .replace(/^00/, "");
       if (!d) return "";
       const isBD =
         d.startsWith("880") ||
@@ -1079,9 +1314,7 @@ export const updateSingleCreatedLead = async (req, res) => {
       const isBD = norm.startsWith("880") && norm.length === 13;
       const core = isBD ? norm.slice(3) : norm;
       const body = core.split("").join("\\D*");
-      const prefix = isBD
-        ? "^\\D*(?:(?:00)?880\\D*)?0?\\D*"
-        : "^[\\D0]*";
+      const prefix = isBD ? "^\\D*(?:(?:00)?880\\D*)?0?\\D*" : "^[\\D0]*";
       return new RegExp(prefix + body + "\\D*$");
     };
 
@@ -1149,7 +1382,8 @@ export const updateSingleCreatedLead = async (req, res) => {
               ? existingLead.assignTo
               : existingLead.createdBy;
 
-          const userDetails = await user.findOne({ email: ownerEmail })
+          const userDetails = await user
+            .findOne({ email: ownerEmail })
             .select("name")
             .lean();
           const agentName = userDetails?.name || ownerEmail || "Unknown";
@@ -1172,7 +1406,14 @@ export const updateSingleCreatedLead = async (req, res) => {
 
     // ---------- CHANGE TRACKING NOTE ----------
     const currentUser = updates.lastModifiedBy || "Unknown User";
-    const trackedFields = ["name", "phone", "fblink", "email", "address", "orderNumber"];
+    const trackedFields = [
+      "name",
+      "phone",
+      "fblink",
+      "email",
+      "address",
+      "orderNumber",
+    ];
     const parts = [];
 
     for (const key of trackedFields) {
@@ -1187,7 +1428,9 @@ export const updateSingleCreatedLead = async (req, res) => {
     }
 
     if (Array.isArray(updates.courses)) {
-      const oldNames = (leadDoc.courses || []).map((c) => c.courseName).filter(Boolean);
+      const oldNames = (leadDoc.courses || [])
+        .map((c) => c.courseName)
+        .filter(Boolean);
       const newNames = updates.courses.map((c) => c.courseName).filter(Boolean);
       const added = newNames.filter((n) => !oldNames.includes(n));
       const removed = oldNames.filter((n) => !newNames.includes(n));

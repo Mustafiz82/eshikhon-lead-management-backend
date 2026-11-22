@@ -1,10 +1,11 @@
 import { Router } from "express"
-import { createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, getOrderDetails, markJoinedFromAttendance, updateLeads, updateSingleCreatedLead, updateSingleLead } from "../controllers/leadController.js"
+import { checkLeadSimilarity, createLead, createSingleLead, deleteLeads, getAllLeads, getInterestedCourses, getLeadsCount, getLeadSources, getOrderDetails, markJoinedFromAttendance, updateLeads, updateSingleCreatedLead, updateSingleLead } from "../controllers/leadController.js"
 import { verifyAdmin } from "../middleware/authMiddleware.js"
 
 export const leadRoute = Router()
 
 leadRoute.post("/", createLead)
+leadRoute.post("/check-similarity", checkLeadSimilarity)
 leadRoute.post("/single-lead", createSingleLead)
 leadRoute.put("/single-lead/:id", updateSingleCreatedLead)
 leadRoute.get("/", getAllLeads)
