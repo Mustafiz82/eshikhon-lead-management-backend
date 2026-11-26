@@ -119,6 +119,58 @@ const getConflictReason = (incomingCourses, existingCourses) => {
   return null;
 };
 
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildSearchOr = (rawSearch) => {
+  const trimmed = String(rawSearch || "").trim();
+  if (!trimmed) return null;
+
+  const escapedSearch = escapeRegex(trimmed);
+
+  const orConditions = [
+    { name: { $regex: escapedSearch, $options: "i" } },
+    { email: { $regex: escapedSearch, $options: "i" } },
+    { phone: { $regex: escapedSearch, $options: "i" } },
+    {
+      $expr: {
+        $regexMatch: {
+          input: { $toString: { $ifNull: ["$orderNumber", ""] } },
+          regex: escapedSearch,
+          options: "i",
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: { $toString: "$_id" },
+          regex: escapedSearch,
+          options: "i",
+        },
+      },
+    },
+  ];
+
+  // If the search looks like a phone number, allow arbitrary spaces/dashes/non-digits (\D*)
+  const isPhoneLike = /^[\d\s+\-().]+$/.test(trimmed);
+  if (isPhoneLike) {
+    let digitsOnly = trimmed
+      .replace(/\D/g, "")
+      .replace(/^00/, "")
+      .replace(/^880/, "")
+      .replace(/^0+/, "");
+
+    if (digitsOnly.length > 0) {
+      const spacedPhoneRegex = digitsOnly.split("").join("\\D*");
+      orConditions.push({
+        phone: { $regex: spacedPhoneRegex, $options: "i" },
+      });
+    }
+  }
+
+  return orConditions;
+};
+
 // Check an incoming lead against a Map(contactKey -> array of course arrays)
 // const findContactConflict = (l, contactMap) => {
 //   const incomingCourses = getCourseNames(l);
@@ -836,7 +888,6 @@ export const createSingleLead = async (req, res) => {
   }
 };
 
-
 // ---------- Similarity Helpers ----------
 
 // Strip BD "880" prefix so missing/extra digits on "01..." numbers
@@ -875,12 +926,7 @@ const damerauLevenshtein = (a, b) => {
         dp[i][j - 1] + 1,
         dp[i - 1][j - 1] + cost,
       );
-      if (
-        i > 1 &&
-        j > 1 &&
-        a[i - 1] === b[j - 2] &&
-        a[i - 2] === b[j - 1]
-      ) {
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
         dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
       }
     }
@@ -943,7 +989,11 @@ const buildPhoneCandidateConditions = (rawPhone) => {
   return conditions;
 };
 
-const evaluateCourseRelation = (hasCourseInput, incomingCourses, existingCourses) => {
+const evaluateCourseRelation = (
+  hasCourseInput,
+  incomingCourses,
+  existingCourses,
+) => {
   const overlap = incomingCourses.filter((c) => existingCourses.includes(c));
   const incomingCounselling = incomingCourses.includes("Counselling");
   const existingCounselling = existingCourses.includes("Counselling");
@@ -1117,7 +1167,8 @@ export const checkLeadSimilarity = async (req, res) => {
         willBlockOnSubmit = true;
         warningMessage = `Order number ${cleanOrder} already exists.`;
       } else if (phoneMatchType === "EXACT" || fbMatched) {
-        const via = phoneMatchType === "EXACT" ? "Phone number" : "Facebook link";
+        const via =
+          phoneMatchType === "EXACT" ? "Phone number" : "Facebook link";
         if (courseEval.isCourseConflict) {
           matchType = "EXACT_DUPLICATE";
           severity = "error";
@@ -1229,7 +1280,8 @@ export const checkLeadSimilarity = async (req, res) => {
     };
 
     enrichedMatches.sort((a, b) => {
-      const pDiff = (priority[a.matchType] || 99) - (priority[b.matchType] || 99);
+      const pDiff =
+        (priority[a.matchType] || 99) - (priority[b.matchType] || 99);
       if (pDiff !== 0) return pDiff;
       return b.similarityScore - a.similarityScore;
     });
@@ -1574,30 +1626,11 @@ export const getAllLeads = async (req, res) => {
       phoneSearchClean = digitsOnly;
     }
 
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: phoneSearchClean || search, $options: "i" } },
-        {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: "$orderNumber" },
-              regex: search,
-              options: "i",
-            },
-          },
-        },
-        {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: "$_id" }, // Change "_id" to "leadId" if it is a separate field
-              regex: search,
-              options: "i",
-            },
-          },
-        },
-      ];
+    if (search && search.trim()) {
+      const searchOr = buildSearchOr(search);
+      if (searchOr) {
+        filter.$or = searchOr;
+      }
     }
 
     if (assignTo && assignTo !== "All") {
@@ -2123,30 +2156,11 @@ export const getLeadsCount = async (req, res) => {
       phoneSearchClean = digitsOnly;
     }
 
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: phoneSearchClean || search, $options: "i" } },
-        {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: "$orderNumber" },
-              regex: search,
-              options: "i",
-            },
-          },
-        },
-        {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: "$_id" },
-              regex: search,
-              options: "i",
-            },
-          },
-        },
-      ];
+    if (search && search.trim()) {
+      const searchOr = buildSearchOr(search);
+      if (searchOr) {
+        filter.$or = searchOr;
+      }
     }
 
     // 4. AssignTo
